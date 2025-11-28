@@ -1,0 +1,27 @@
+[package]
+name = "capturer-svr"
+version = "0.1.0"
+edition = "2024"
+authors = ["zbz"]
+keywords = ["capture", "photo", "rtsp", "jpg"]
+description = ""
+license = "MIT"
+categories = []
+repository = "https://github.com/rusthing/capturer"
+homepage = "https://github.com/rusthing/capturer"
+documentation = "https://github.com/rusthing/capturer/blob/master/README.adoc"
+readme = "README.adoc"
+
+[dependencies]
+clap = { workspace = true, features = ["derive"] }
+log = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_with = { workspace = true }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
+actix-web = { workspace = true }
+validator = { workspace = true, features = ["derive"] }
+utoipa = { workspace = true, features = ["actix_extras"] }
+utoipa-swagger-ui = { workspace = true, features = ["actix-web"] }
+ffmpeg-next = { workspace = true }
+image = { workspace = true }
+robotech = { workspace = true, features = ["web"] }

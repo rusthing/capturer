@@ -14,24 +14,23 @@ impl CapturerSvc {
     pub async fn capture_rtsp_to_jpg(
         dto: CapturerCaptureRtspToJpgDto,
     ) -> Result<Ro<serde_json::Value>, SvcError> {
-        ffmpeg_next::init().map_err(|e| SvcError::RuntimeXError(Box::new(e)))?;
-
-        let mut input_context = ffmpeg_next::format::input(&dto.rtsp_url.unwrap())
+        let mut input = ffmpeg_next::format::input(&dto.rtsp_url.unwrap())
             .map_err(|e| SvcError::RuntimeXError(Box::new(e)))?;
-        let input = input_context
+        let input_stream = input
             .streams()
             .best(ffmpeg_next::media::Type::Video)
             .expect("No video stream found");
-        let video_stream_index = input.index();
+        let video_stream_index = input_stream.index();
 
-        let context_decoder =
-            ffmpeg_next::codec::context::Context::from_parameters(input.parameters())
+        let decoder_context =
+            ffmpeg_next::codec::context::Context::from_parameters(input_stream.parameters())
                 .expect("Failed to create decoder context");
-        let mut decoder = context_decoder
+        let mut decoder = decoder_context
             .decoder()
             .video()
             .map_err(|e| SvcError::RuntimeXError(Box::new(e)))?;
 
+        // 创建缩放器上下文，使用明确的颜色空间参数
         let mut scaler = ffmpeg_next::software::scaling::context::Context::get(
             decoder.format(),
             decoder.width(),
@@ -43,9 +42,8 @@ impl CapturerSvc {
         )
         .map_err(|e| SvcError::RuntimeXError(Box::new(e)))?;
 
-        for (_, packet) in input_context.packets() {
-            // let packet = packet?;
-            if packet.stream() != video_stream_index {
+        for (stream, packet) in input.packets() {
+            if stream.index() != video_stream_index || !packet.is_key() {
                 continue;
             }
 
@@ -53,37 +51,27 @@ impl CapturerSvc {
                 .send_packet(&packet)
                 .map_err(|e| SvcError::RuntimeXError(Box::new(e)))?;
             let mut frame = ffmpeg_next::frame::Video::empty();
-            if decoder.receive_frame(&mut frame).is_ok() {
+            while decoder.receive_frame(&mut frame).is_ok() {
                 // 转换为 RGB24
                 let mut rgb_frame = ffmpeg_next::frame::Video::empty();
                 scaler
                     .run(&frame, &mut rgb_frame)
                     .map_err(|e| SvcError::RuntimeXError(Box::new(e)))?;
 
-                // 提取数据
+                // 提取数据 (RGB24格式)
+                let buffer = rgb_frame.data(0);
                 let width = rgb_frame.width();
                 let height = rgb_frame.height();
-                let data = rgb_frame.data(0);
-                let stride = rgb_frame.stride(0);
+                // let stride = rgb_frame.stride(0);
 
-                let mut img_buffer = ImageBuffer::<Rgb<u8>, Vec<u8>>::new(width, height);
-                for y in 0..height {
-                    for x in 0..width {
-                        let base = (y as usize * stride) + (x as usize * 3);
-                        let pixel = Rgb([data[base], data[base + 1], data[base + 2]]);
-                        img_buffer.put_pixel(x, y, pixel);
-                    }
-                }
+                let img_buffer: ImageBuffer<Rgb<u8>, _> =
+                    ImageBuffer::from_raw(width, height, buffer.to_owned())
+                        .ok_or("Failed to create image buffer")
+                        .map_err(|e| SvcError::RuntimeError(e.to_string()))?;
 
                 let mut jpeg_bytes = Vec::new();
-                let mut cursor = Cursor::new(&mut jpeg_bytes);
-                image::codecs::jpeg::JpegEncoder::new(&mut cursor)
-                    .encode(
-                        img_buffer.as_raw(),
-                        width,
-                        height,
-                        image::ColorType::Rgb8.into(),
-                    )
+                image::codecs::jpeg::JpegEncoder::new(Cursor::new(&mut jpeg_bytes))
+                    .encode_image(&img_buffer)
                     .map_err(|e| SvcError::RuntimeXError(Box::new(e)))?;
 
                 debug!("获取oss_file_api实例...");

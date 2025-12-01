@@ -13,10 +13,12 @@ documentation = "https://github.com/rusthing/capturer/blob/master/README.adoc"
 readme = "README.adoc"
 
 [dependencies]
-clap = { workspace = true, features = ["derive"] }
 log = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
 serde = { workspace = true, features = ["derive"] }
 serde_with = { workspace = true }
+serde_json = { workspace = true }
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
 actix-web = { workspace = true }
 validator = { workspace = true, features = ["derive"] }
@@ -25,3 +27,4 @@ utoipa-swagger-ui = { workspace = true, features = ["actix-web"] }
 ffmpeg-next = { workspace = true }
 image = { workspace = true }
 robotech = { workspace = true, features = ["web"] }
+oss-api = { workspace = true }

@@ -2,6 +2,7 @@ use capturer_svr::settings::settings::{init_settings, SETTINGS};
 use capturer_svr::web_service_config::web_service_config;
 use clap::Parser;
 use log::info;
+use oss_api::api::oss_api_utils::init_oss_api;
 use robotech::env::init_env;
 use robotech::log::log::init_log;
 use robotech::web_server::start_web_server;
@@ -46,6 +47,10 @@ async fn main() {
 
     info!("初始化设置选项...");
     init_settings(args.config_file, args.port);
+
+    info!("初始化API...");
+    let api_settings = SETTINGS.get().unwrap().api.clone();
+    init_oss_api(api_settings);
 
     // 启动Web服务
     let web_server_settings = SETTINGS.get().unwrap().web_server.clone();

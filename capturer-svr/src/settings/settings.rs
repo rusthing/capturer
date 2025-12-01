@@ -1,7 +1,10 @@
+use crate::settings::capturer_settings::CapturerSettings;
 use log::info;
+use robotech::api::api_settings::ApiSettings;
 use robotech::settings::get_settings;
 use robotech::web_server::WebServerSettings;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::OnceLock;
 
 /// 全局配置
@@ -11,9 +14,15 @@ pub static SETTINGS: OnceLock<Settings> = OnceLock::new();
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub struct Settings {
-    /// Web服务器
+    /// 抓拍机设置置
+    #[serde(default = "CapturerSettings::default")]
+    pub capturer: CapturerSettings,
+    /// Web服务器设置
     #[serde(default = "WebServerSettings::default")]
     pub web_server: WebServerSettings,
+    /// API设置
+    #[serde(default = "HashMap::default")]
+    pub api: HashMap<String, ApiSettings>,
 }
 
 /// # 创建新的配置实例

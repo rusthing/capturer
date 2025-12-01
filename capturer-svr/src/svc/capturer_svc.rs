@@ -1,6 +1,9 @@
 use crate::dto::capturer_dto::CapturerCaptureRtspToJpgDto;
-use crate::vo::capturer_vo::CapturerCaptureVo;
+use crate::settings::settings::SETTINGS;
 use image::{ImageBuffer, Rgb};
+use log::debug;
+use oss_api::api::oss_api_utils::OSS_FILE_API;
+use robotech::ro::ro_result::RoResult;
 use robotech::ro::Ro;
 use robotech::svc::svc_error::SvcError;
 use std::io::Cursor;
@@ -8,12 +11,12 @@ use std::io::Cursor;
 pub struct CapturerSvc;
 
 impl CapturerSvc {
-    pub fn capture_rtsp_to_jpg(
+    pub async fn capture_rtsp_to_jpg(
         dto: CapturerCaptureRtspToJpgDto,
-    ) -> Result<Ro<CapturerCaptureVo>, SvcError> {
+    ) -> Result<Ro<serde_json::Value>, SvcError> {
         ffmpeg_next::init().map_err(|e| SvcError::RuntimeXError(Box::new(e)))?;
 
-        let mut input_context = ffmpeg_next::format::input(&dto.url.unwrap())
+        let mut input_context = ffmpeg_next::format::input(&dto.rtsp_url.unwrap())
             .map_err(|e| SvcError::RuntimeXError(Box::new(e)))?;
         let input = input_context
             .streams()
@@ -83,8 +86,26 @@ impl CapturerSvc {
                     )
                     .map_err(|e| SvcError::RuntimeXError(Box::new(e)))?;
 
-                return Ok(Ro::success("抓拍成功".to_string())
-                    .extra(Some(CapturerCaptureVo { data: jpeg_bytes })));
+                debug!("获取oss_file_api实例...");
+                let oss_file_api = OSS_FILE_API.get().unwrap();
+
+                let oss_file_api_ro = oss_file_api
+                    .upload_file_content(
+                        dto.bucket
+                            .unwrap_or(SETTINGS.get().unwrap().capturer.bucket.clone())
+                            .as_str(),
+                        &format!("{}.jpg", chrono::Utc::now().timestamp_millis()),
+                        jpeg_bytes,
+                    )
+                    .await?;
+
+                return Ok(match oss_file_api_ro.result {
+                    RoResult::Success => oss_file_api_ro.msg("抓拍成功".to_string()),
+                    _ => {
+                        let msg = oss_file_api_ro.msg.clone();
+                        oss_file_api_ro.msg(format!("抓拍失败: {}", msg))
+                    }
+                });
             }
         }
 

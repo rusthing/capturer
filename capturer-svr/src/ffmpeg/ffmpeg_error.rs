@@ -1,11 +1,10 @@
 use std::string::FromUtf8Error;
+use wheel_rs::cmd::cmd_error::CmdError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum FfmpegError {
-    #[error("ffprobe执行失败: {0}")]
-    FfprobeExecuteFail(std::io::Error),
-    #[error("ffprobe运行失败: {0}")]
-    FfprobeRunFail(String),
+    #[error("ffprobe执行命令失败: {0}")]
+    FfprobeCmdError(#[from] CmdError),
     #[error("ffprobe运行时信息按utf8编码解析失败: {0}")]
     FfprobeParseUtf8Fail(FromUtf8Error),
     #[error("ffprobe运行时信息按json格式解析失败: {0}")]

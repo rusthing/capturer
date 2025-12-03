@@ -1,9 +1,9 @@
-use chrono::{DateTime, Utc};
-use dashmap::DashMap;
-use parking_lot::RwLock;
+// use chrono::{DateTime, Utc};
+// use dashmap::DashMap;
+// use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::process::Child;
-use std::sync::Arc;
+// use std::process::Child;
+// use std::sync::Arc;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FfprobeCmdStreamsInfo {
@@ -42,40 +42,40 @@ pub struct StreamMetadata {
     /// 帧率
     pub fps: u8,
 }
-
-/// 流媒体会话结构
-#[derive(Clone)]
-pub struct StreamSession {
-    /// 流ID
-    pub stream_id: String,
-    /// RTSP地址
-    pub rtsp_url: String,
-    /// 最后访问时间
-    pub last_access: Arc<RwLock<DateTime<Utc>>>,
-    /// 是否激活状态
-    pub is_active: Arc<RwLock<bool>>,
-    /// 帧缓冲区
-    pub frame_buffer: Arc<RwLock<Vec<u8>>>,
-    /// 流媒体元数据
-    pub metadata: Arc<RwLock<Option<StreamMetadata>>>,
-    /// ffmpeg进程
-    pub ffmpeg_process: Arc<RwLock<Option<Child>>>,
-    /// 错误计数
-    pub error_count: Arc<RwLock<u32>>,
-    /// 最后错误时间
-    pub last_error_time: Arc<RwLock<Option<DateTime<Utc>>>>,
-    /// 重启计数
-    pub restart_count: Arc<RwLock<u32>>,
-}
-
-/// 流管理器
-pub struct StreamManager {
-    /// 会话集合
-    sessions: Arc<DashMap<String, StreamSession>>,
-    /// 空闲超时秒数
-    idle_timeout_secs: u64,
-    /// 最大重启尝试次数
-    max_restart_attempts: u32,
-    /// 错误阈值
-    error_threshold: u32,
-}
+//
+// /// 流媒体会话结构
+// #[derive(Clone)]
+// pub struct StreamSession {
+//     /// 流ID
+//     pub stream_id: String,
+//     /// RTSP地址
+//     pub rtsp_url: String,
+//     /// 最后访问时间
+//     pub last_access: Arc<RwLock<DateTime<Utc>>>,
+//     /// 是否激活状态
+//     pub is_active: Arc<RwLock<bool>>,
+//     /// 帧缓冲区
+//     pub frame_buffer: Arc<RwLock<Vec<u8>>>,
+//     /// 流媒体元数据
+//     pub metadata: Arc<RwLock<Option<StreamMetadata>>>,
+//     /// ffmpeg进程
+//     pub ffmpeg_process: Arc<RwLock<Option<Child>>>,
+//     /// 错误计数
+//     pub error_count: Arc<RwLock<u32>>,
+//     /// 最后错误时间
+//     pub last_error_time: Arc<RwLock<Option<DateTime<Utc>>>>,
+//     /// 重启计数
+//     pub restart_count: Arc<RwLock<u32>>,
+// }
+//
+// /// 流管理器
+// pub struct StreamManager {
+//     /// 会话集合
+//     sessions: Arc<DashMap<String, StreamSession>>,
+//     /// 空闲超时秒数
+//     idle_timeout_secs: u64,
+//     /// 最大重启尝试次数
+//     max_restart_attempts: u32,
+//     /// 错误阈值
+//     error_threshold: u32,
+// }

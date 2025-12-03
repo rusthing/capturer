@@ -511,11 +511,10 @@ dependencies = [
  "actix-web",
  "chrono",
  "clap",
- "dashmap",
+ "ctor",
  "image",
  "log",
  "oss-api",
- "parking_lot",
  "robotech",
  "serde",
  "serde_json",
@@ -525,6 +524,7 @@ dependencies = [
  "utoipa",
  "utoipa-swagger-ui",
  "validator",
+ "wheel-rs",
 ]
 
 [[package]]
@@ -765,6 +765,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "ctor"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eb230974aaf0aca4d71665bed0aca156cf43b764fcb9583b69c6c3e686f35e72"
+dependencies = [
+ "ctor-proc-macro",
+ "dtor",
+]
+
+[[package]]
+name = "ctor-proc-macro"
+version = "0.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "52560adf09603e58c9a7ee1fe1dcb95a16927b17c127f0ac02d6e768a0e25bc1"
+
+[[package]]
 name = "darling"
 version = "0.20.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -832,20 +848,6 @@ dependencies = [
  "darling_core 0.21.3",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "dashmap"
-version = "7.0.0-rc2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4a1e35a65fe0538a60167f0ada6e195ad5d477f6ddae273943596d4a1a5730b"
-dependencies = [
- "cfg-if",
- "crossbeam-utils",
- "equivalent",
- "hashbrown 0.15.5",
- "lock_api",
- "parking_lot_core",
 ]
 
 [[package]]
@@ -931,6 +933,21 @@ dependencies = [
  "socket2 0.6.1",
  "windows-sys 0.60.2",
 ]
+
+[[package]]
+name = "dtor"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "404d02eeb088a82cfd873006cb713fe411306c7d182c344905e101fb1167d301"
+dependencies = [
+ "dtor-proc-macro",
+]
+
+[[package]]
+name = "dtor-proc-macro"
+version = "0.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f678cf4a922c215c63e0de95eb1ff08a958a81d47e485cf9da1e27bf6305cfa5"
 
 [[package]]
 name = "dyn-clone"
@@ -2066,7 +2083,7 @@ dependencies = [
 
 [[package]]
 name = "oss-api"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "log",
  "reqwest",
@@ -2540,7 +2557,7 @@ dependencies = [
 
 [[package]]
 name = "robotech"
-version = "0.10.1"
+version = "0.11.1"
 dependencies = [
  "actix-web",
  "async-trait",
@@ -3650,15 +3667,14 @@ checksum = "a28ac98ddc8b9274cb41bb4d9d4d5c425b6020c50c46f25559911905610b4a88"
 
 [[package]]
 name = "wheel-rs"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "366d37621daed829649b1a8f713b69852b8feaedab846be7c2b292424d17519a"
+version = "0.4.1"
 dependencies = [
  "dns-lookup",
  "humantime",
  "log",
  "serde",
  "sha2",
+ "thiserror",
 ]
 
 [[package]]

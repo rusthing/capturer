@@ -25,9 +25,10 @@ actix-web = { workspace = true }
 validator = { workspace = true, features = ["derive"] }
 utoipa = { workspace = true, features = ["actix_extras"] }
 utoipa-swagger-ui = { workspace = true, features = ["actix-web"] }
-#ffmpeg-next = { workspace = true }
 image = { workspace = true }
-robotech = { workspace = true, features = ["web"] }
+wheel-rs = { workspace = true }
+robotech = { workspace = true, features = ["web", "api"] }
 oss-api = { workspace = true }
-parking_lot = "0.12.5"
-dashmap = "7.0.0-rc2"
+
+[dev-dependencies]
+ctor = { workspace = true }

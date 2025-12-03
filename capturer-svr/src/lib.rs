@@ -1,6 +1,7 @@
 pub mod api_doc;
 pub mod ctrl;
 pub mod dto;
+pub mod ffmpeg;
 pub mod settings;
 pub mod svc;
 pub mod utils;

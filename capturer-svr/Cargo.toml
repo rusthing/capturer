@@ -14,6 +14,7 @@ readme = "README.adoc"
 
 [dependencies]
 log = { workspace = true }
+thiserror = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 serde = { workspace = true, features = ["derive"] }
@@ -24,7 +25,9 @@ actix-web = { workspace = true }
 validator = { workspace = true, features = ["derive"] }
 utoipa = { workspace = true, features = ["actix_extras"] }
 utoipa-swagger-ui = { workspace = true, features = ["actix-web"] }
-ffmpeg-next = { workspace = true }
+#ffmpeg-next = { workspace = true }
 image = { workspace = true }
 robotech = { workspace = true, features = ["web"] }
 oss-api = { workspace = true }
+parking_lot = "0.12.5"
+dashmap = "7.0.0-rc2"

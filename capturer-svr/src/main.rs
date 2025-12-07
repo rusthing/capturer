@@ -1,5 +1,5 @@
 use capturer_svr::settings::settings::{init_settings, SETTINGS};
-use capturer_svr::utils::ffmpeg_utils::init_ffmpeg;
+// use capturer_svr::utils::ffmpeg_utils::init_ffmpeg;
 use capturer_svr::web_service_config::web_service_config;
 use clap::Parser;
 use log::info;
@@ -54,7 +54,7 @@ async fn main() {
     init_oss_api(api_settings);
 
     // 初始化ffmpeg
-    init_ffmpeg().expect("初始化ffmpeg失败");
+    // init_ffmpeg().expect("初始化ffmpeg失败");
 
     // 启动Web服务
     let web_server_settings = SETTINGS.get().unwrap().web_server.clone();

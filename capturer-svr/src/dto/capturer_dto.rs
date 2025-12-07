@@ -4,13 +4,16 @@ use validator::Validate;
 
 #[derive(ToSchema, Debug, Deserialize, Validate)]
 #[serde(rename_all = "camelCase")]
-pub struct CapturerCaptureRtspToJpgDto {
-    /// RTSP地址
+pub struct CapturerCaptureToJpegDto {
+    /// 抓拍流的地址
     #[validate(
-        required(message = "RTSP地址不能为空"),
-        length(min = 1, message = "RTSP地址不能为空")
+        required(message = "抓拍流的地址不能为空"),
+        length(min = 1, message = "抓拍流的地址不能为空")
     )]
-    pub rtsp_url: Option<String>,
+    pub stream_url: Option<String>,
     /// 存储桶
     pub bucket: Option<String>,
+    /// 当前用户ID
+    #[serde(skip_deserializing)]
+    pub current_user_id: u64,
 }

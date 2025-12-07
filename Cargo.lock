@@ -1455,7 +1455,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.6.1",
+ "socket2 0.5.10",
  "system-configuration",
  "tokio",
  "tower-service",
@@ -2083,7 +2083,7 @@ dependencies = [
 
 [[package]]
 name = "oss-api"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "log",
  "reqwest",
@@ -2557,10 +2557,9 @@ dependencies = [
 
 [[package]]
 name = "robotech"
-version = "0.11.1"
+version = "0.13.0"
 dependencies = [
  "actix-web",
- "async-trait",
  "chrono",
  "config",
  "log",
@@ -3667,7 +3666,7 @@ checksum = "a28ac98ddc8b9274cb41bb4d9d4d5c425b6020c50c46f25559911905610b4a88"
 
 [[package]]
 name = "wheel-rs"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "dns-lookup",
  "humantime",

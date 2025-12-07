@@ -17,9 +17,9 @@ validator = "0.20.0"
 utoipa = "5.4.0"
 utoipa-swagger-ui = "9.0.2"
 image = "0.25.9"
-wheel-rs = "0.4.1"
-robotech = "0.11.1"
-oss-api = "0.2.2"
+wheel-rs = "0.4.2"
+robotech = "0.13.0"
+oss-api = "0.3.0"
 
 
 [patch.crates-io]

@@ -1,17 +1,33 @@
 use crate::ffmpeg::ffmpeg_error::FfmpegError;
 use crate::ffmpeg::ffmpeg_vo::{CodecType, FfprobeCmdInfo, StreamMetadata};
-use clap::ValueHint::Unknown;
 use log::debug;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, RwLock};
 use wheel_rs::cmd::cmd_utils::exec;
 
+/// ffmpeg命令执行模块
+///
+/// 该模块提供了基于ffmpeg工具的视频流处理功能，包括：
+/// - RTSP流媒体信息探测
+/// - 视频流转码和拉流
+/// - 视频帧抓拍为JPEG图片
 pub struct FfmpegCmd {}
 
 impl FfmpegCmd {
-    /// 探测流信息（编码格式、分辨率等）
-    pub async fn probe_stream_info(rtsp_url: &str) -> Result<StreamMetadata, FfmpegError> {
-        debug!("probe_stream_info: {}", rtsp_url);
+    /// # 探测流信息（编码格式、分辨率等）
+    ///
+    /// 使用ffprobe工具探测流的基本信息，包括：
+    /// - 视频编码格式（H.264/H.265等）
+    /// - 分辨率（宽高）
+    /// - 帧率
+    ///
+    /// ## 参数
+    /// * `stream_url` - 探测流的地址
+    ///
+    /// ## 返回值
+    /// 返回包含流媒体元数据的Result
+    pub async fn probe_stream_info(stream_url: &str) -> Result<StreamMetadata, FfmpegError> {
+        debug!("probe_stream_info: {}", stream_url);
         let stdout = exec(
             "ffprobe",
             &[
@@ -23,7 +39,7 @@ impl FfmpegCmd {
                 "stream=codec_name,width,height,r_frame_rate,bit_rate",
                 "-of",
                 "json",
-                rtsp_url,
+                stream_url,
             ],
         )?;
 
@@ -69,21 +85,34 @@ impl FfmpegCmd {
         })
     }
 
-    /// 拉流（智能转码：H.265 转 H.264，H.264 直通）
+    /// # 拉流（智能转码：H.265 转 H.264，H.264 直通）
+    ///
+    /// 从流拉取视频数据，并根据编码格式进行智能转码处理：
+    /// - H.264编码：直接透传，不进行转码以提高性能
+    /// - H.265编码：转码为H.264以保证兼容性
+    /// - 其他编码：转码为H.264以保证兼容性
+    ///
+    /// ## 参数
+    /// * `stream_url` - 拉流的地址
+    /// * `frame_tx` - 用于发送视频帧数据的通道
+    /// * `metadata` - 用于存储流媒体元数据的共享引用
+    ///
+    /// ## 返回值
+    /// 返回ffmpeg子进程的句柄
     pub async fn pull_stream(
-        rtsp_url: &str,
+        stream_url: &str,
         frame_tx: tokio::sync::mpsc::Sender<Vec<u8>>,
         metadata: Arc<RwLock<Option<StreamMetadata>>>,
     ) -> Result<Child, Box<dyn std::error::Error>> {
         // 先探测流信息
-        let stream_metadata = Self::probe_stream_info(rtsp_url).await?;
+        let stream_metadata = Self::probe_stream_info(stream_url).await?;
 
         // 构建基础参数
         let mut ffmpeg_args = vec![
             "-rtsp_transport".to_string(),
             "tcp".to_string(),
             "-i".to_string(),
-            rtsp_url.to_string(),
+            stream_url.to_string(),
             "pipe:1".to_string(),
         ];
 
@@ -139,25 +168,33 @@ impl FfmpegCmd {
         Ok(child)
     }
 
-    /// 抓拍单帧为 JPEG
-    pub async fn capture_to_jpeg(rtsp_url: &str) -> Result<Vec<u8>, FfmpegError> {
-        debug!("capture_frame_as_jpeg: {}", rtsp_url);
+    /// # 抓拍单帧为 JPEG
+    ///
+    /// 从RTSP流中抓取单帧画面并编码为JPEG格式图片。
+    ///
+    /// ## 参数
+    /// * `stream_url` - 抓拍流的地址
+    ///
+    /// ## 返回值
+    /// 返回包含JPEG图片数据的字节数组
+    pub async fn capture_to_jpeg(stream_url: &str) -> Result<Vec<u8>, FfmpegError> {
+        debug!("capture_frame_as_jpeg: {}", stream_url);
         Ok(exec(
             "ffmpeg",
             &[
-                "-rtsp_transport",
-                "tcp",
-                "-i",
-                rtsp_url,
-                "-vframes",
-                "1",
-                "-f",
-                "image2",
-                "-c:v",
-                "mjpeg",
-                "-q:v",
-                "2", // 质量 1-31，越小越好
-                "pipe:1",
+                "-rtsp_transport", // 设置RTSP传输方式参数
+                "tcp",             // 使用TCP协议传输（更稳定）
+                "-i",              // 指定输入源参数
+                stream_url,        // 输入的RTSP流地址
+                "-vframes",        // 设置要输出的视频帧数参数
+                "1",               // 只抓取一帧画面
+                "-f",              // 指定输出格式参数
+                "image2pipe",      // 图像格式（JPEG、PNG等通用图像格式容器）
+                "-c:v",            // 设置视频编解码器参数
+                "mjpeg",           // 使用MJPEG编码
+                "-q:v",            // 设置视频质量参数
+                "2",               // JPEG质量等级，1-31，数值越小质量越高
+                "pipe:1",          // 输出到标准输出管道
             ],
         )?)
     }

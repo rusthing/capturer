@@ -14,9 +14,12 @@ impl CapturerSvc {
     pub async fn capture_to_jpeg(
         dto: CapturerCaptureToJpegDto,
     ) -> Result<Ro<serde_json::Value>, SvcError> {
-        let jpeg_bytes = FfmpegCmd::capture_to_jpeg(dto.stream_url.unwrap().as_str())
-            .await
-            .map_err(|e| RuntimeXError("抓拍异常".to_string(), Box::new(e)))?;
+        let jpeg_bytes = FfmpegCmd::capture_to_jpeg(
+            dto.stream_url.unwrap().as_str(),
+            SETTINGS.get().unwrap().capturer.jpeg_quality,
+        )
+        .await
+        .map_err(|e| RuntimeXError("抓拍异常".to_string(), Box::new(e)))?;
 
         debug!("获取oss_file_api实例...");
         let oss_file_api = OSS_FILE_API.get().unwrap();

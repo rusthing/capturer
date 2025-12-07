@@ -177,8 +177,12 @@ impl FfmpegCmd {
     ///
     /// ## 返回值
     /// 返回包含JPEG图片数据的字节数组
-    pub async fn capture_to_jpeg(stream_url: &str) -> Result<Vec<u8>, FfmpegError> {
-        debug!("capture_frame_as_jpeg: {}", stream_url);
+    pub async fn capture_to_jpeg(
+        stream_url: &str,
+        jpeg_quality: Option<u8>,
+    ) -> Result<Vec<u8>, FfmpegError> {
+        debug!("capture_to_jpeg: {}", stream_url);
+        let jpeg_quality = &jpeg_quality.unwrap_or(2).to_string();
         Ok(exec(
             "ffmpeg",
             &[
@@ -193,7 +197,7 @@ impl FfmpegCmd {
                 "-c:v",            // 设置视频编解码器参数
                 "mjpeg",           // 使用MJPEG编码
                 "-q:v",            // 设置视频质量参数
-                "2",               // JPEG质量等级，1-31，数值越小质量越高
+                jpeg_quality,      // JPEG质量等级，1-31，数值越小质量越高
                 "pipe:1",          // 输出到标准输出管道
             ],
         )?)

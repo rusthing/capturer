@@ -9,13 +9,12 @@ fn init_tests() {
 mod tests {
     use capturer_svr::ffmpeg::ffmpeg_cmd::FfmpegCmd;
     use log::info;
-    use robotech::env::init_env;
-    use robotech::log::init_log;
     use std::fs::File;
     use std::io::Write;
     use tokio;
 
-    const RTSP_URL: &str = "rtsp://admin:gssxt456@192.168.1.100:554/h264/ch1/main/av_stream";
+    // const RTSP_URL: &str = "rtsp://admin:gssxt456@192.168.1.100:554/h264/ch1/main/av_stream";
+    const RTSP_URL: &str = "rtsp://admin:lh123456789@221.7.253.103:40554";
 
     #[tokio::test]
     async fn test_probe_stream_info_with_valid_data() {
@@ -33,7 +32,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_capture_to_jpeg() {
-        let result = FfmpegCmd::capture_to_jpeg(RTSP_URL).await;
+        let result = FfmpegCmd::capture_to_jpeg(RTSP_URL, 2).await;
 
         match result {
             Ok(data) => {

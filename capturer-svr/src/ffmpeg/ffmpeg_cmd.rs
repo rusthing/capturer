@@ -179,10 +179,10 @@ impl FfmpegCmd {
     /// 返回包含JPEG图片数据的字节数组
     pub async fn capture_to_jpeg(
         stream_url: &str,
-        jpeg_quality: Option<u8>,
+        jpeg_quality: u8,
     ) -> Result<Vec<u8>, FfmpegError> {
         debug!("capture_to_jpeg: {}", stream_url);
-        let jpeg_quality = &jpeg_quality.unwrap_or(2).to_string();
+        let jpeg_quality = &jpeg_quality.to_string();
         Ok(exec(
             "ffmpeg",
             &[

@@ -1,0 +1,18 @@
+<!--<script src="mpegts.js"></script>-->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/flv.js/1.6.2/flv.min.js"></script>
+<video id="videoElement"></video>
+<script>
+    if (flvjs.isSupported()) {
+        var videoElement = document.getElementById('videoElement');
+        var flvPlayer = flvjs.createPlayer({
+            type: 'flv',
+            // url: 'http://127.0.0.1:40080/live/00.live.mp4'
+            url: 'http://127.0.0.1:40080/live/01.live.flv'
+            // url: 'http://127.0.0.1:40080/live/00.live.ts?vhost=221.7.253.103:40554'
+            // url: 'http://127.0.0.1:40080/live/00/hls.m3u8?vhost=221.7.253.103:40554'
+        });
+        flvPlayer.attachMediaElement(videoElement);
+        flvPlayer.load();
+        flvPlayer.play();
+    }
+</script>

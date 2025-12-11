@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,minimal-ui">
+    <meta name="referrer" content="no-referrer">
+    <title>mpegts</title>
+</head>
+<body>
+<script src="mpegts.js"></script>
+<video id="videoElement"></video>
+<script>
+    if (mpegts.getFeatureList().mseLivePlayback) {
+        var videoElement = document.getElementById('videoElement');
+        var player = mpegts.createPlayer({
+            type: 'flv',  // could also be mpegts, m2ts, flv
+            isLive: true,
+            url: 'http://127.0.0.1:40080/live/01.live.flv'
+        });
+        player.attachMediaElement(videoElement);
+        player.load();
+        player.play();
+    }
+</script>
+</body>
+</html>

@@ -6,9 +6,10 @@ use utoipa_swagger_ui::{SwaggerUi, Url};
 
 /// # 配置WebService
 pub fn web_service_config(cfg: &mut web::ServiceConfig) {
-    cfg.service(capturer_ctrl::capture_to_jpg);
-    cfg.service(SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
-        Url::new("抓拍器", "/ctrl-docs/capturer-openapi.json"),
-        CapturerApiDoc::openapi(),
-    )]));
+    cfg.service(capturer_ctrl::capture_to_jpg)
+        .service(capturer_ctrl::stream)
+        .service(SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
+            Url::new("抓拍器", "/ctrl-docs/capturer-openapi.json"),
+            CapturerApiDoc::openapi(),
+        )]));
 }

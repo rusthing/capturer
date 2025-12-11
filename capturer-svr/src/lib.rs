@@ -3,6 +3,7 @@ pub mod ctrl;
 pub mod dto;
 pub mod ffmpeg;
 pub mod settings;
+pub mod stream;
 pub mod svc;
 pub mod utils;
 pub mod vo;

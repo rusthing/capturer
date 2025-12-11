@@ -1,9 +1,11 @@
+use crate::ffmpeg::ffmpeg_eo::{AudioCodecType, FfprobeCmdInfo, StreamMetadata, VideoCodecType};
 use crate::ffmpeg::ffmpeg_error::FfmpegError;
-use crate::ffmpeg::ffmpeg_vo::{CodecType, FfprobeCmdInfo, StreamMetadata};
-use log::debug;
-use std::process::{Child, Command, Stdio};
-use std::sync::{Arc, RwLock};
-use wheel_rs::cmd::cmd_utils::exec;
+use bytes::Bytes;
+use log::{debug, error, warn};
+use std::time::Instant;
+use tokio::io::{AsyncReadExt, BufReader};
+use tokio::sync::broadcast::Sender;
+use wheel_rs::cmd::cmd_utils::{exec, spawn_cmd};
 
 /// ffmpeg命令执行模块
 ///
@@ -33,10 +35,9 @@ impl FfmpegCmd {
             &[
                 "-v",
                 "error",
-                "-select_streams",
-                "v:0",
+                "-show_streams",
                 "-show_entries",
-                "stream=codec_name,width,height,r_frame_rate,bit_rate",
+                "stream=codec_type,codec_name,width,height,r_frame_rate",
                 "-of",
                 "json",
                 stream_url,
@@ -47,125 +48,44 @@ impl FfmpegCmd {
         debug!("运行ffprobe命令成功: {}", stdout);
         let stdout: FfprobeCmdInfo =
             serde_json::from_str(&stdout).map_err(|e| FfmpegError::FfprobeParseJsonFail(e))?;
-        let streams = stdout
-            .streams
-            .ok_or_else(|| FfmpegError::FfprobeParseFail("No streams found".to_string()))?;
-        let stream = &streams[0];
-        let codec_name = stream
-            .codec_name
-            .as_ref()
-            .ok_or_else(|| FfmpegError::FfprobeParseFail("No codec_name found".to_string()))?
-            .as_str();
-        let codec = match codec_name {
-            "h264" => CodecType::H264,
-            "hevc" => CodecType::H265,
-            codec_name_str => CodecType::Unknown(codec_name_str.to_string()),
-        };
+        let streams = stdout.streams;
+        let mut stream_metadata = StreamMetadata::default();
+        // 遍历所有流，分别处理视频和音频流
+        for stream in &streams {
+            if stream.codec_type == "video" {
+                let codec_name = stream.codec_name.clone().ok_or_else(|| {
+                    FfmpegError::FfprobeParseFail("缺少codec_name字段".to_string())
+                })?;
+                stream_metadata.video_codec = Some(match codec_name.as_str() {
+                    "h264" => VideoCodecType::H264,
+                    "hevc" => VideoCodecType::H265,
+                    codec_name_str => VideoCodecType::Other(codec_name_str.to_string()),
+                });
 
-        let width = stream.width.unwrap_or_default();
-        let height = stream.height.unwrap_or_default();
+                stream_metadata.width = stream.width;
+                stream_metadata.height = stream.height;
 
-        let fps: u8 = if let Some(fps) = &stream.r_frame_rate {
-            if let Some(pos) = fps.find('/') {
-                let num: u8 = fps[..pos].parse().unwrap_or(0);
-                let den: u8 = fps[pos + 1..].parse().unwrap_or(1);
-                num / den
-            } else {
-                0
-            }
-        } else {
-            0
-        };
-
-        Ok(StreamMetadata {
-            codec,
-            width,
-            height,
-            fps,
-        })
-    }
-
-    /// # 拉流（智能转码：H.265 转 H.264，H.264 直通）
-    ///
-    /// 从流拉取视频数据，并根据编码格式进行智能转码处理：
-    /// - H.264编码：直接透传，不进行转码以提高性能
-    /// - H.265编码：转码为H.264以保证兼容性
-    /// - 其他编码：转码为H.264以保证兼容性
-    ///
-    /// ## 参数
-    /// * `stream_url` - 拉流的地址
-    /// * `frame_tx` - 用于发送视频帧数据的通道
-    /// * `metadata` - 用于存储流媒体元数据的共享引用
-    ///
-    /// ## 返回值
-    /// 返回ffmpeg子进程的句柄
-    pub async fn pull_stream(
-        stream_url: &str,
-        frame_tx: tokio::sync::mpsc::Sender<Vec<u8>>,
-        metadata: Arc<RwLock<Option<StreamMetadata>>>,
-    ) -> Result<Child, Box<dyn std::error::Error>> {
-        // 先探测流信息
-        let stream_metadata = Self::probe_stream_info(stream_url).await?;
-
-        // 构建基础参数
-        let mut ffmpeg_args = vec![
-            "-rtsp_transport".to_string(),
-            "tcp".to_string(),
-            "-i".to_string(),
-            stream_url.to_string(),
-            "pipe:1".to_string(),
-        ];
-
-        // 根据编码类型添加特定参数
-        match stream_metadata.codec {
-            // H.264 直通，不转码（性能最优）
-            CodecType::H264 => {
-                ffmpeg_args.extend_from_slice(&[
-                    "-c:v".to_string(), // 视频编解码器设置参数
-                    "copy".to_string(), // 直通，不转码
-                ]);
-            }
-            // H.265 转 H.264 或未知编码使用保险转码
-            CodecType::H265 | CodecType::Unknown(_) => {
-                ffmpeg_args.extend_from_slice(&[
-                    "-c:v".to_string(),      // 视频编解码器设置参数
-                    "libx264".to_string(),   // 使用H.264编码
-                    "-preset".to_string(),   // 编码预设参数
-                    "ultrafast".to_string(), // 超快速编码（低延迟，较低压缩率）
-                ]);
-            }
-        }
-
-        let mut child = Command::new("ffmpeg")
-            .args(&ffmpeg_args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()?;
-
-        // 异步读取输出
-        if let Some(mut stdout) = child.stdout.take() {
-            let frame_tx_clone = frame_tx.clone();
-            tokio::spawn(async move {
-                let mut buffer = vec![0u8; 65536];
-                loop {
-                    match std::io::Read::read(&mut stdout, &mut buffer) {
-                        Ok(0) => {
-                            log::warn!("ffmpeg stdout closed");
-                            break;
-                        }
-                        Ok(n) => {
-                            let _ = frame_tx_clone.send(buffer[..n].to_vec()).await;
-                        }
-                        Err(e) => {
-                            log::error!("Read error: {}", e);
-                            break;
-                        }
-                    }
+                let r_frame_rate = &stream.r_frame_rate;
+                stream_metadata.fps = if let Some(pos) = r_frame_rate.find('/') {
+                    let num: u8 = r_frame_rate[..pos].parse().unwrap_or(0);
+                    let den: u8 = r_frame_rate[pos + 1..].parse().unwrap_or(1);
+                    Some(num / den)
+                } else {
+                    None
                 }
-            });
+            } else if stream.codec_type == "audio" {
+                let codec_name = stream.codec_name.clone().ok_or_else(|| {
+                    FfmpegError::FfprobeParseFail("缺少codec_name字段".to_string())
+                })?;
+                stream_metadata.audio_codec = Some(match codec_name.as_str() {
+                    "aac" => AudioCodecType::AAC,
+                    "mp3" => AudioCodecType::MP3,
+                    codec_name_str => AudioCodecType::Other(codec_name_str.to_string()),
+                })
+            }
         }
 
-        Ok(child)
+        Ok(stream_metadata)
     }
 
     /// # 抓拍单帧为 JPEG
@@ -201,5 +121,130 @@ impl FfmpegCmd {
                 "pipe:1",          // 输出到标准输出管道
             ],
         )?)
+    }
+
+    /// # 拉流转码（智能转码：H.265 转 H.264，H.264 直通）
+    ///
+    /// 从流拉取视频数据，并根据编码格式进行智能转码处理：
+    /// - H.264编码：直接透传，不进行转码以提高性能
+    /// - H.265编码：转码为H.264以保证兼容性
+    /// - 其他编码：转码为H.264以保证兼容性
+    ///
+    /// ## 参数
+    /// * `stream_url` - 拉流的地址
+    /// * `frame_tx` - 用于发送视频帧数据的通道
+    /// * `metadata` - 用于存储流媒体元数据的共享引用
+    ///
+    /// ## 返回值
+    /// 返回ffmpeg子进程的句柄
+    pub async fn pull_and_transcode_stream(
+        stream_url: &str,
+        sender: Sender<Bytes>,
+    ) -> Result<(), FfmpegError> {
+        // 先探测流信息
+        let stream_metadata = Self::probe_stream_info(stream_url).await?;
+
+        // 构建基础参数
+        let mut ffmpeg_args = vec![
+            "-rtsp_transport", // 设置RTSP传输方式参数
+            "tcp",             // 强制 TCP，防止丢包花屏
+            "-i",              // 输入源参数
+            stream_url,        // 输入的RTSP流地址
+            "-f",              // 输出格式参数
+            "flv",             // 输出格式必须为 flv
+                               // "-flvflags",            // flv 输出参数
+                               // "no_duration_filesize", // 指定 FLV 输出文件大小
+        ];
+
+        // 根据编码类型添加特定参数
+        match stream_metadata
+            .video_codec
+            .ok_or_else(|| FfmpegError::FfprobeParseFail("未发现视频编解码器".to_string()))?
+        {
+            // H.264 直通，不转码（性能最优）
+            VideoCodecType::H264 => {
+                ffmpeg_args.extend_from_slice(&[
+                    "-c:v", // 视频编解码器设置参数
+                    "copy", // 直通，不转码
+                ]);
+            }
+            // H.265或未知编码使用H.264转码
+            VideoCodecType::H265 | VideoCodecType::Other(_) => {
+                ffmpeg_args.extend_from_slice(&[
+                    "-c:v",        // 视频编解码器设置参数
+                    "libx264",     // 使用H.264编码(flv 需要)
+                    "-preset",     // 编码预设参数
+                    "ultrafast",   // 超快速编码（低延迟，较低压缩率）
+                    "-tune",       // 编码调优参数
+                    "zerolatency", // 零延迟调优
+                    "-crf",        // 码率控制参数
+                    "28",          // 码率控制等级，范围0-51，数值越小质量越高
+                ]);
+            }
+        }
+
+        match stream_metadata.audio_codec {
+            Some(AudioCodecType::AAC) | None => {}
+            Some(_) => {
+                ffmpeg_args.extend_from_slice(&[
+                    "-c:a", // 音频编解码器设置参数
+                    "aac",  // 音频转为 aac (flv 需要)
+                ]);
+            }
+        }
+
+        ffmpeg_args.extend_from_slice(&[
+            "pipe:1", // 输出到标准输出管道
+        ]);
+
+        let mut child = spawn_cmd("ffmpeg", &ffmpeg_args)?;
+
+        // 异步读取输出
+        if let Some(stdout) = child.stdout.take() {
+            tokio::spawn(async move {
+                let mut reader = BufReader::new(stdout);
+                let mut buffer = vec![0u8; 65536];
+                let mut error_timestamp = None;
+                loop {
+                    match reader.read(&mut buffer).await {
+                        Ok(0) => {
+                            warn!("ffmpeg的stdout已经关闭");
+                            break;
+                        }
+                        Ok(n) => {
+                            let data = Bytes::copy_from_slice(&buffer[..n]);
+                            if let Err(e) = sender.send(data) {
+                                if error_timestamp.is_none() {
+                                    error!("发送数据异常，记录错误时间: {}", e);
+                                    error_timestamp = Some(Instant::now());
+                                    continue;
+                                }
+                                let now = Instant::now();
+                                if now.duration_since(error_timestamp.unwrap()).as_secs() > 30 {
+                                    error!("错误超时{}秒，退出此拉流转码", 30);
+                                    break;
+                                }
+                            } else {
+                                error_timestamp = None;
+                            }
+                        }
+                        Err(e) => {
+                            error!("从ffmpeg读取流异常: {}", e);
+                            break;
+                        }
+                    }
+                }
+                child
+                    .kill()
+                    .await
+                    .map_err(|e| FfmpegError::FfmpegKillError(e))
+            });
+        } else {
+            return Err(FfmpegError::FfmpegTakeStdoutError(
+                "获取不到命令输出".to_string(),
+            ));
+        }
+
+        Ok(())
     }
 }

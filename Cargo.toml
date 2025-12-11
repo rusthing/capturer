@@ -3,7 +3,7 @@ members = ["capturer-svr"]
 resolver = "3"
 
 [workspace.dependencies]
-ctor = "0.6.2"
+ctor = "0.6.3"
 log = "0.4.29"
 thiserror = "2.0.17"
 clap = "4.5.53"
@@ -17,9 +17,12 @@ validator = "0.20.0"
 utoipa = "5.4.0"
 utoipa-swagger-ui = "9.0.2"
 image = "0.25.9"
-wheel-rs = "0.4.2"
-robotech = "0.13.0"
-oss-api = "0.3.0"
+rustc-hash = "2.1.1"
+bytes = "1.11.0"
+futures = "0.3.31"
+wheel-rs = "0.4.3"
+robotech = "0.13.1"
+oss-api = "0.3.1"
 
 
 [patch.crates-io]

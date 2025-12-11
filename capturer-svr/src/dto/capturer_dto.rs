@@ -17,3 +17,17 @@ pub struct CapturerCaptureToJpegDto {
     #[serde(skip_deserializing)]
     pub current_user_id: u64,
 }
+
+#[derive(ToSchema, Debug, Deserialize, Validate)]
+#[serde(rename_all = "camelCase")]
+pub struct CapturerGetStreamDto {
+    /// 抓拍流的地址
+    #[validate(
+        required(message = "抓拍流的地址不能为空"),
+        length(min = 1, message = "抓拍流的地址不能为空")
+    )]
+    pub stream_url: Option<String>,
+    /// 当前用户ID
+    #[serde(skip_deserializing)]
+    pub current_user_id: u64,
+}

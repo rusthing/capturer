@@ -1,46 +1,57 @@
-// use chrono::{DateTime, Utc};
-// use dashmap::DashMap;
-// use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-// use std::process::Child;
-// use std::sync::Arc;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FfprobeCmdStreamsInfo {
+    pub codec_type: String,
     pub codec_name: Option<String>,
     pub width: Option<u32>,
     pub height: Option<u32>,
-    pub r_frame_rate: Option<String>,
+    pub r_frame_rate: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FfprobeCmdInfo {
-    pub programs: Option<Vec<String>>,
-    pub streams: Option<Vec<FfprobeCmdStreamsInfo>>,
+    pub programs: Vec<String>,
+    pub streams: Vec<FfprobeCmdStreamsInfo>,
 }
 
-/// 编解码器类型枚举
-#[derive(Clone, Debug)]
-pub enum CodecType {
-    /// 未知编解码器，携带原始编解码器名称
-    Unknown(String),
+/// 视频编解码器类型枚举
+#[derive(Debug, PartialEq, Clone)]
+pub enum VideoCodecType {
     /// H.264 编解码器
     H264,
     /// H.265 (HEVC) 编解码器
     H265,
+    /// 其它编解码器，携带原始编解码器名称
+    Other(String),
+}
+
+/// 音频编解码器类型枚举
+#[derive(Debug, PartialEq, Clone)]
+pub enum AudioCodecType {
+    /// 未知音频编解码器
+    Unknown,
+    /// AAC 编解码器
+    AAC,
+    /// MP3 编解码器
+    MP3,
+    /// 其它编解码器，携带原始编解码器名称
+    Other(String),
 }
 
 /// 流媒体元数据结构
-#[derive(Clone, Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct StreamMetadata {
-    /// 编解码器类型
-    pub codec: CodecType,
+    /// 视频编解码器类型
+    pub video_codec: Option<VideoCodecType>,
+    /// 音频编解码器类型
+    pub audio_codec: Option<AudioCodecType>,
     /// 视频宽度
-    pub width: u32,
+    pub width: Option<u32>,
     /// 视频高度
-    pub height: u32,
+    pub height: Option<u32>,
     /// 帧率
-    pub fps: u8,
+    pub fps: Option<u8>,
 }
 //
 // /// 流媒体会话结构

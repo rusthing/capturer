@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,minimal-ui">
+    <meta name="referrer" content="no-referrer">
+    <title>xgplayer</title>
+</head>
+<body>
+<div id="mse"></div>
+<link rel="stylesheet" href="https://unpkg.byted-static.com/xgplayer/3.0.23/dist/index.min.css"/>
+<script charset="utf-8" src="https://unpkg.byted-static.com/xgplayer/3.0.23/dist/index.min.js"></script>
+
+<script charset="utf-8" src="https://unpkg.byted-static.com/xgplayer-flv/3.0.23/dist/index.min.js"></script>
+<script>
+    const config = {
+        "id": "mse",
+        "url": "http://127.0.0.1:40080/live/01.live.flv",
+        "playsinline": true,
+        "poster": "//lf9-cdn-tos.bytecdntp.com/cdn/expire-1-M/byted-player-videos/1.0.0/poster.jpg",
+        "plugins": [],
+        "isLive": true,
+        "autoplay": true
+    }
+    config.plugins.push(FlvPlayer)
+    let player = new Player(config)
+
+</script>
+</body>
+</html>

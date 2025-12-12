@@ -174,7 +174,7 @@ impl FfmpegCmd {
                     "-c:v",        // 视频编解码器设置参数
                     "libx264",     // 使用H.264编码(flv 需要)
                     "-preset",     // 编码预设参数
-                    "ultrafast",   // 超快速编码（低延迟，较低压缩率）
+                    "superfast",   // 超快速编码（低延迟，较低压缩率，比ultrafast稍慢但CPU占用更低）
                     "-tune",       // 编码调优参数
                     "zerolatency", // 零延迟调优
                     "-crf",        // 码率控制参数

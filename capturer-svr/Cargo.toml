@@ -27,12 +27,12 @@ validator = { workspace = true, features = ["derive"] }
 utoipa = { workspace = true, features = ["actix_extras"] }
 utoipa-swagger-ui = { workspace = true, features = ["actix-web"] }
 image = { workspace = true }
+bytes = { workspace = true }
+futures = { workspace = true }
+async-stream = { workspace = true }
 wheel-rs = { workspace = true }
 robotech = { workspace = true, features = ["web", "api"] }
 oss-api = { workspace = true }
-bytes = { workspace = true }
-futures = { workspace = true }
-async-stream = "0.3.6"
 
 
 [dev-dependencies]

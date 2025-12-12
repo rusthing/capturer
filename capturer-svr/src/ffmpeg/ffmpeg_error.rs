@@ -1,5 +1,7 @@
+use bytes::Bytes;
 use std::io::Error;
 use std::string::FromUtf8Error;
+use tokio::sync::broadcast::error::SendError;
 use wheel_rs::cmd::cmd_error::CmdError;
 
 #[derive(Debug, thiserror::Error)]
@@ -16,4 +18,6 @@ pub enum FfmpegError {
     FfmpegTakeStdoutError(String),
     #[error("关闭ffmpeg失败: {0}")]
     FfmpegKillError(Error),
+    #[error("ffmpeg发送数据失败: {0}")]
+    FfmpegSendError(SendError<Bytes>),
 }

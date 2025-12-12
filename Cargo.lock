@@ -2137,7 +2137,7 @@ dependencies = [
 
 [[package]]
 name = "oss-api"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "log",
  "reqwest",
@@ -2611,7 +2611,7 @@ dependencies = [
 
 [[package]]
 name = "robotech"
-version = "0.13.2"
+version = "0.13.3"
 dependencies = [
  "actix-web",
  "chrono",
@@ -3726,8 +3726,9 @@ checksum = "a28ac98ddc8b9274cb41bb4d9d4d5c425b6020c50c46f25559911905610b4a88"
 
 [[package]]
 name = "wheel-rs"
-version = "0.4.3"
+version = "1.0.0"
 dependencies = [
+ "bytes",
  "dns-lookup",
  "humantime",
  "log",

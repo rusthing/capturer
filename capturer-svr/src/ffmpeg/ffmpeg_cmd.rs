@@ -2,10 +2,10 @@ use crate::ffmpeg::ffmpeg_eo::{AudioCodecType, FfprobeCmdInfo, StreamMetadata, V
 use crate::ffmpeg::ffmpeg_error::FfmpegError;
 use bytes::Bytes;
 use log::{debug, error, warn};
-use std::time::Instant;
 use tokio::io::{AsyncReadExt, BufReader};
+use tokio::process::Child;
 use tokio::sync::broadcast::Sender;
-use wheel_rs::cmd::cmd_utils::{exec, spawn_cmd};
+use wheel_rs::cmd;
 
 /// ffmpeg命令执行模块
 ///
@@ -30,7 +30,7 @@ impl FfmpegCmd {
     /// 返回包含流媒体元数据的Result
     pub async fn probe_stream_info(stream_url: &str) -> Result<StreamMetadata, FfmpegError> {
         debug!("probe_stream_info: {}", stream_url);
-        let stdout = exec(
+        let stdout = cmd::std::execute(
             "ffprobe",
             &[
                 "-v",
@@ -103,7 +103,7 @@ impl FfmpegCmd {
     ) -> Result<Vec<u8>, FfmpegError> {
         debug!("capture_to_jpeg: {}", stream_url);
         let jpeg_quality = &jpeg_quality.to_string();
-        Ok(exec(
+        Ok(cmd::std::execute(
             "ffmpeg",
             &[
                 "-rtsp_transport", // 设置RTSP传输方式参数
@@ -140,7 +140,7 @@ impl FfmpegCmd {
     pub async fn pull_and_transcode_stream(
         stream_url: &str,
         sender: Sender<Bytes>,
-    ) -> Result<(), FfmpegError> {
+    ) -> Result<Child, FfmpegError> {
         // 先探测流信息
         let stream_metadata = Self::probe_stream_info(stream_url).await?;
 
@@ -201,54 +201,7 @@ impl FfmpegCmd {
             "pipe:1", // 输出到标准输出管道
         ]);
 
-        let mut child = spawn_cmd("ffmpeg", &ffmpeg_args)?;
-
-        // 异步读取输出
-        if let Some(stdout) = child.stdout.take() {
-            tokio::spawn(async move {
-                let mut reader = BufReader::new(stdout);
-                let mut buffer = vec![0u8; 65536];
-                let mut error_timestamp = None;
-                loop {
-                    match reader.read(&mut buffer).await {
-                        Ok(0) => {
-                            warn!("ffmpeg的stdout已经关闭");
-                            break;
-                        }
-                        Ok(n) => {
-                            let data = Bytes::copy_from_slice(&buffer[..n]);
-                            if let Err(e) = sender.send(data) {
-                                if error_timestamp.is_none() {
-                                    error!("发送数据异常，记录错误时间: {}", e);
-                                    error_timestamp = Some(Instant::now());
-                                    continue;
-                                }
-                                let now = Instant::now();
-                                if now.duration_since(error_timestamp.unwrap()).as_secs() > 30 {
-                                    error!("错误超时{}秒，退出此拉流转码", 30);
-                                    break;
-                                }
-                            } else {
-                                error_timestamp = None;
-                            }
-                        }
-                        Err(e) => {
-                            error!("从ffmpeg读取流异常: {}", e);
-                            break;
-                        }
-                    }
-                }
-                child
-                    .kill()
-                    .await
-                    .map_err(|e| FfmpegError::FfmpegKillError(e))
-            });
-        } else {
-            return Err(FfmpegError::FfmpegTakeStdoutError(
-                "获取不到命令输出".to_string(),
-            ));
-        }
-
-        Ok(())
+        // 执行ffmpeg命令
+        Ok(cmd::spawn::execute("ffmpeg", &ffmpeg_args, sender)?)
     }
 }

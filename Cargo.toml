@@ -20,9 +20,10 @@ image = "0.25.9"
 rustc-hash = "2.1.1"
 bytes = "1.11.0"
 futures = "0.3.31"
-wheel-rs = "0.4.3"
-robotech = "0.13.2"
-oss-api = "0.3.1"
+async-stream = "0.3.6"
+wheel-rs = "1.0.0"
+robotech = "0.13.3"
+oss-api = "0.3.2"
 
 
 [patch.crates-io]

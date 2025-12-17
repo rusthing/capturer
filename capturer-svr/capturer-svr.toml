@@ -1,2 +1,6 @@
 [web-server]
 port = 9850
+
+[capturer]
+stream.check-interval-seconds = 5
+stream.timeout-seconds = 5

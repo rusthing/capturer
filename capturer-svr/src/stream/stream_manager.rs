@@ -30,11 +30,10 @@ impl StreamManager {
             Arc::new(RwLock::new(FxHashMap::default()));
         // 定时检查器
         let mut interval_timer = interval(TokioDuration::from_secs(check_interval_seconds));
-        // 开启线程做循环，遍历sessions，删除超时的会话
         info!("<定时清除过期会话>任务正在创建....");
         let sessions_clone = sessions.clone();
         tokio::spawn(async move {
-            info!("<定时清除过期会话>任务创建完成.");
+            info!("<定时清除过期会话>任务创建完成. 定时检查间隔: {check_interval_seconds}秒");
             loop {
                 interval_timer.tick().await;
                 Self::cleanup_expired_sessions(sessions_clone.clone(), timeout_seconds).await;
@@ -46,6 +45,7 @@ impl StreamManager {
     pub async fn get_data_receiver(
         &self,
         url: &str,
+        channel_capacity: usize,
     ) -> Result<
         (
             Receiver<Bytes>,
@@ -66,7 +66,7 @@ impl StreamManager {
             } else {
                 {
                     let read_buffer_size = SETTINGS.get().unwrap().capturer.stream.read_buffer_size;
-                    let (data_sender, data_receiver) = broadcast::channel(100);
+                    let (data_sender, data_receiver) = broadcast::channel(channel_capacity);
                     let (process_exit_sender, process_exit_receiver) = oneshot::channel();
                     let (cache_header_sender, cache_header_receiver) = oneshot::channel();
                     let last_access_datetime = Arc::new(RwLock::new(None));
@@ -152,6 +152,7 @@ impl StreamManager {
         sessions: Arc<RwLock<FxHashMap<String, StreamSession>>>,
         timeout_seconds: u64,
     ) {
+        debug!("开始清理过期会话....");
         let cut_off_datetime = Utc::now() - Duration::minutes(timeout_seconds as i64);
         let mut expired_keys = Vec::new();
 
@@ -168,17 +169,23 @@ impl StreamManager {
             }
         }
 
-        // 删除过期的会话
         if !expired_keys.is_empty() {
+            info!("<清理过期会话>任务正在创建....");
             tokio::spawn(async move {
+                info!("<清理过期会话>任务创建完成.");
                 for (key, child) in expired_keys {
+                    debug!("开始删除会话{key}....");
                     {
                         let mut write_guard = sessions.write().unwrap();
                         write_guard.remove(&key);
                     }
-                    // 在独立任务中杀掉子进程，避免阻塞清理过程
+                    debug!("会话{key}删除完成.");
                     let child = Arc::try_unwrap(child).unwrap();
+                    let child_id = child.id().unwrap();
+                    debug!("开始查杀子进程{child_id}....");
+                    // 在独立任务中杀掉子进程，避免阻塞清理过程
                     let _ = kill_process(child).await;
+                    debug!("子进程{child_id}查杀完成.");
                 }
             });
         }

@@ -47,8 +47,9 @@ impl CapturerSvc {
     }
 
     pub async fn stream(dto: CapturerGetStreamDto) -> Result<FlvStream, SvcError> {
+        let channel_capacity = SETTINGS.get().unwrap().capturer.stream.channel_capacity;
         let (data_receiver, header, cache_header_sender) = STREAM_MANAGER
-            .get_data_receiver(dto.stream_url.unwrap().as_str())
+            .get_data_receiver(dto.stream_url.unwrap().as_str(), channel_capacity)
             .await
             .map_err(|e| RuntimeXError("获取流异常".to_string(), Box::new(e)))?;
         Ok(FlvStream::new(

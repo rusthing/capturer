@@ -21,6 +21,9 @@ pub struct StreamSettings {
     /// 超时时间(单位为秒，默认30*60)
     #[serde(default = "timeout_seconds_default")]
     pub timeout_seconds: u64,
+    /// 通道容量(默认100)
+    #[serde(default = "channel_capacity_default")]
+    pub channel_capacity: usize,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -49,6 +52,7 @@ impl Default for StreamSettings {
             read_buffer_size: None,
             check_interval_seconds: check_interval_seconds_default(),
             timeout_seconds: timeout_seconds_default(),
+            channel_capacity: channel_capacity_default(),
         }
     }
 }
@@ -75,4 +79,8 @@ fn check_interval_seconds_default() -> u64 {
 
 fn timeout_seconds_default() -> u64 {
     30 * 60
+}
+
+fn channel_capacity_default() -> usize {
+    100
 }

@@ -21,6 +21,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_with = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
+tokio-stream = { workspace = true }
 rustc-hash = { workspace = true }
 actix-web = { workspace = true }
 validator = { workspace = true, features = ["derive"] }
@@ -33,6 +34,7 @@ async-stream = { workspace = true }
 wheel-rs = { workspace = true }
 robotech = { workspace = true, features = ["web", "api"] }
 oss-api = { workspace = true }
+futures-core = "0.3.31"
 
 
 [dev-dependencies]

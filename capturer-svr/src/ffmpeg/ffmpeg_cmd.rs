@@ -1,8 +1,8 @@
 use crate::ffmpeg::ffmpeg_eo::{AudioCodecType, FfprobeCmdInfo, StreamMetadata, VideoCodecType};
 use crate::ffmpeg::ffmpeg_error::FfmpegError;
 use bytes::Bytes;
-use log::{debug, error, warn};
-use tokio::io::{AsyncReadExt, BufReader};
+use log::debug;
+use std::sync::mpsc;
 use tokio::process::Child;
 use tokio::sync::broadcast::Sender;
 use wheel_rs::cmd;
@@ -139,21 +139,25 @@ impl FfmpegCmd {
     /// 返回ffmpeg子进程的句柄
     pub async fn pull_and_transcode_stream(
         stream_url: &str,
-        sender: Sender<Bytes>,
+        data_sender: Sender<Bytes>,
+        process_end_sender: mpsc::Sender<()>,
+        read_buffer_size: Option<usize>,
     ) -> Result<Child, FfmpegError> {
         // 先探测流信息
         let stream_metadata = Self::probe_stream_info(stream_url).await?;
 
         // 构建基础参数
         let mut ffmpeg_args = vec![
-            "-rtsp_transport", // 设置RTSP传输方式参数
-            "tcp",             // 强制 TCP，防止丢包花屏
-            "-i",              // 输入源参数
-            stream_url,        // 输入的RTSP流地址
-            "-f",              // 输出格式参数
-            "flv",             // 输出格式必须为 flv
-                               // "-flvflags",            // flv 输出参数
-                               // "no_duration_filesize", // 指定 FLV 输出文件大小
+            "-rtsp_transport",      // 设置RTSP传输方式参数
+            "tcp",                  // 强制 TCP，防止丢包花屏
+            "-i",                   // 输入源参数
+            stream_url,             // 输入的RTSP流地址
+            "-f",                   // 输出格式参数
+            "flv",                  // 输出格式必须为 flv
+            "-flvflags",            // FLV 容器格式
+            "no_duration_filesize", // 指示 ffmpeg 在输出 FLV 文件时不计算和写入文件的总时长(duration)和大小(filesize)到 FLV 的头部信息中
+            "-g",                   // 关键帧间隔参数
+            "25",                   // 关键帧间隔为 25 帧（每 25 帧插入一个关键帧）
         ];
 
         // 根据编码类型添加特定参数
@@ -202,6 +206,12 @@ impl FfmpegCmd {
         ]);
 
         // 执行ffmpeg命令
-        Ok(cmd::spawn::execute("ffmpeg", &ffmpeg_args, sender)?)
+        Ok(cmd::spawn::execute(
+            "ffmpeg",
+            &ffmpeg_args,
+            data_sender,
+            process_end_sender,
+            read_buffer_size,
+        )?)
     }
 }

@@ -2,9 +2,9 @@ use crate::ffmpeg::ffmpeg_eo::{AudioCodecType, FfprobeCmdInfo, StreamMetadata, V
 use crate::ffmpeg::ffmpeg_error::FfmpegError;
 use bytes::Bytes;
 use log::debug;
-use std::sync::mpsc;
 use tokio::process::Child;
 use tokio::sync::broadcast::Sender;
+use tokio::sync::oneshot;
 use wheel_rs::cmd;
 
 /// ffmpeg命令执行模块
@@ -140,7 +140,7 @@ impl FfmpegCmd {
     pub async fn pull_and_transcode_stream(
         stream_url: &str,
         data_sender: Sender<Bytes>,
-        process_end_sender: mpsc::Sender<()>,
+        process_exit_sender: oneshot::Sender<()>,
         read_buffer_size: Option<usize>,
     ) -> Result<Child, FfmpegError> {
         // 先探测流信息
@@ -210,7 +210,7 @@ impl FfmpegCmd {
             "ffmpeg",
             &ffmpeg_args,
             data_sender,
-            process_end_sender,
+            process_exit_sender,
             read_buffer_size,
         )?)
     }

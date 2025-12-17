@@ -9,6 +9,7 @@ use oss_api::api::oss_api_utils::OSS_FILE_API;
 use robotech::ro::Ro;
 use robotech::ro::RoResult;
 use robotech::svc::svc_error::SvcError;
+use std::sync::Arc;
 use wheel_rs::runtime::Error::RuntimeXError;
 
 pub struct CapturerSvc;
@@ -46,10 +47,14 @@ impl CapturerSvc {
     }
 
     pub async fn stream(dto: CapturerGetStreamDto) -> Result<FlvStream, SvcError> {
-        let (data_receiver, header) = STREAM_MANAGER
+        let (data_receiver, header, cache_header_sender) = STREAM_MANAGER
             .get_data_receiver(dto.stream_url.unwrap().as_str())
             .await
             .map_err(|e| RuntimeXError("获取流异常".to_string(), Box::new(e)))?;
-        Ok(FlvStream::new(data_receiver, header))
+        Ok(FlvStream::new(
+            data_receiver,
+            Arc::clone(&header),
+            cache_header_sender,
+        ))
     }
 }

@@ -5,13 +5,11 @@ use crate::settings::settings::SETTINGS;
 use crate::stream::stream_session::StreamSession;
 use bytes::Bytes;
 use chrono::{Duration, Utc};
-use log::debug;
+use log::{debug, info};
 use rustc_hash::FxHashMap;
-use std::sync::{mpsc, Arc, LazyLock, OnceLock, RwLock};
-use std::{ptr, thread};
-use tokio::process::Child;
-use tokio::sync::broadcast;
+use std::sync::{Arc, LazyLock, OnceLock, RwLock};
 use tokio::sync::broadcast::Receiver;
+use tokio::sync::{broadcast, oneshot};
 use tokio::time::{interval, Duration as TokioDuration};
 use wheel_rs::cmd::spawn::kill_process;
 
@@ -33,8 +31,10 @@ impl StreamManager {
         // 定时检查器
         let mut interval_timer = interval(TokioDuration::from_secs(check_interval_seconds));
         // 开启线程做循环，遍历sessions，删除超时的会话
+        info!("<定时清除过期会话>任务正在创建....");
         let sessions_clone = sessions.clone();
         tokio::spawn(async move {
+            info!("<定时清除过期会话>任务创建完成.");
             loop {
                 interval_timer.tick().await;
                 Self::cleanup_expired_sessions(sessions_clone.clone(), timeout_seconds).await;
@@ -43,82 +43,104 @@ impl StreamManager {
         Self { sessions }
     }
 
-    pub async fn get_session(&self, url: &str) -> Option<StreamSession> {
-        let sessions = &self.sessions;
-        if let Some(stream_session) = sessions.read().unwrap().get(url) {
-            *stream_session.last_access_datetime.write().unwrap() = Utc::now();
-            Some(stream_session.clone())
-        } else {
-            None
-        }
-    }
-
     pub async fn get_data_receiver(
         &self,
         url: &str,
-    ) -> Result<(Receiver<Bytes>, Arc<OnceLock<Bytes>>), FfmpegError> {
+    ) -> Result<
+        (
+            Receiver<Bytes>,
+            Arc<OnceLock<Bytes>>,
+            Option<oneshot::Sender<Bytes>>,
+        ),
+        FfmpegError,
+    > {
         let sessions = &self.sessions;
         Ok(
             if let Some(stream_session) = sessions.read().unwrap().get(url) {
-                *stream_session.last_access_datetime.write().unwrap() = Utc::now();
+                *stream_session.last_access_datetime.write().unwrap() = None;
                 (
-                    stream_session.sender.read().unwrap().subscribe(),
-                    stream_session.header.clone(),
+                    stream_session.data_sender.subscribe(),
+                    Arc::clone(&stream_session.header),
+                    None,
                 )
             } else {
                 {
                     let read_buffer_size = SETTINGS.get().unwrap().capturer.stream.read_buffer_size;
                     let (data_sender, data_receiver) = broadcast::channel(100);
-                    let (process_end_sender, process_end_receiver) = mpsc::channel();
-                    let last_access_datetime = Arc::new(RwLock::new(Utc::now()));
-                    let sender = Arc::new(RwLock::new(data_sender.clone()));
-                    let header = Arc::new(OnceLock::new());
+                    let (process_exit_sender, process_exit_receiver) = oneshot::channel();
+                    let (cache_header_sender, cache_header_receiver) = oneshot::channel();
+                    let last_access_datetime = Arc::new(RwLock::new(None));
+
+                    info!("开始拉流与解码....");
                     let child = Arc::new(
                         FfmpegCmd::pull_and_transcode_stream(
                             url,
-                            data_sender,
-                            process_end_sender,
+                            data_sender.clone(),
+                            process_exit_sender,
                             read_buffer_size,
                         )
                         .await?,
                     );
-                    let stream_session = StreamSession {
-                        last_access_datetime,
-                        sender,
+                    let child_id = child.id().unwrap();
+                    info!("ffmpeg child pid: {child_id}");
+
+                    info!("<子进程{child_id}>会话正在创建....");
+                    let data_sender = Arc::new(data_sender);
+                    let header = Arc::new(OnceLock::new());
+                    let session = StreamSession {
                         child: child.clone(),
-                        header: header.clone(),
+                        last_access_datetime,
+                        data_sender,
+                        header: Arc::clone(&header),
                     };
                     {
                         let mut write_guard = sessions.write().unwrap();
-                        write_guard.insert(url.to_string(), stream_session.clone());
+                        write_guard.insert(url.to_string(), session.clone());
                     }
-                    let child_clone = child.clone();
-                    let sessions_clone = sessions.clone();
-                    thread::spawn(async move || {
-                        let _ = process_end_receiver.recv();
-                        Self::remove_session(sessions_clone, Arc::try_unwrap(child_clone).unwrap())
-                            .await;
+                    info!("<子进程{child_id}>会话创建完成.");
+
+                    info!("<监听子进程{child_id}缓存头部>任务正在创建....");
+                    let header_clone = Arc::clone(&header);
+                    tokio::spawn(async move {
+                        info!("<监听子进程{child_id}缓存头部>任务创建完成.");
+                        let bytes = cache_header_receiver.await.unwrap();
+                        debug!("子进程{child_id}缓存头部: {:?}", bytes);
+                        let _ = header_clone.set(bytes);
                     });
-                    (data_receiver, header)
+
+                    info!("<监听子进程{child_id}退出>任务正在创建....");
+                    let sessions_clone = sessions.clone();
+                    tokio::spawn(async move {
+                        info!("<监听子进程{child_id}退出>任务创建完成.");
+                        let _ = process_exit_receiver.await;
+                        debug!("检测到子进程{child_id}已经退出");
+                        Self::remove_session_after_process_exit(sessions_clone, child_id).await;
+                    });
+
+                    (data_receiver, header, Some(cache_header_sender))
                 }
             },
         )
     }
 
     /// 进程退出后删除会话
-    async fn remove_session(sessions: Arc<RwLock<FxHashMap<String, StreamSession>>>, child: Child) {
+    async fn remove_session_after_process_exit(
+        sessions: Arc<RwLock<FxHashMap<String, StreamSession>>>,
+        child_id: u32,
+    ) {
+        debug!("子进程{child_id}退出后删除会话");
         let mut remove_key = None;
         {
             let read_guard = sessions.read().unwrap();
             for (key, session) in read_guard.iter() {
-                if ptr::eq(&Arc::try_unwrap(session.child.clone()).unwrap(), &child) {
+                if session.child.id().unwrap() == child_id {
                     remove_key = Some(key.clone());
                     break;
                 }
             }
         }
         let remove_key = remove_key.unwrap();
-        debug!("remove session: {}", remove_key);
+        debug!("删除会话: {}", remove_key);
         {
             let mut write_guard = sessions.write().unwrap();
             write_guard.remove(&remove_key);
@@ -135,11 +157,13 @@ impl StreamManager {
 
         // 收集过期的会话键
         {
-            let read_guard = sessions.read().unwrap();
-            for (key, session) in read_guard.iter() {
-                let last_access_datetime = session.last_access_datetime.read().unwrap();
-                if *last_access_datetime < cut_off_datetime {
-                    expired_keys.push((key.clone(), session.clone()));
+            let sessions_read_lock = sessions.read().unwrap();
+            for (key, session) in sessions_read_lock.iter() {
+                let last_access_datetime_lock = session.last_access_datetime.read().unwrap();
+                if let Some(last_access_datetime) = *last_access_datetime_lock {
+                    if last_access_datetime < cut_off_datetime {
+                        expired_keys.push((key.clone(), Arc::clone(&session.child)));
+                    }
                 }
             }
         }
@@ -147,14 +171,13 @@ impl StreamManager {
         // 删除过期的会话
         if !expired_keys.is_empty() {
             tokio::spawn(async move {
-                for (key, session) in expired_keys {
+                for (key, child) in expired_keys {
                     {
                         let mut write_guard = sessions.write().unwrap();
                         write_guard.remove(&key);
                     }
                     // 在独立任务中杀掉子进程，避免阻塞清理过程
-                    // let _ = session.child.kill().await;
-                    let child = Arc::try_unwrap(session.child).unwrap();
+                    let child = Arc::try_unwrap(child).unwrap();
                     let _ = kill_process(child).await;
                 }
             });

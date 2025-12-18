@@ -2,5 +2,5 @@
 port = 9850
 
 [capturer]
-stream.check-interval-seconds = 5
-stream.timeout-seconds = 5
+stream.session-check-interval-seconds = 5
+stream.session-timeout-seconds = 5

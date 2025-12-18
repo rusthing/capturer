@@ -37,7 +37,7 @@ impl FfmpegCmd {
                 "error",
                 "-show_streams",
                 "-show_entries",
-                "stream=codec_type,codec_name,width,height,r_frame_rate",
+                "stream=codec_type,codec_name,width,height,r_frame_rate,sample_rate",
                 "-of",
                 "json",
                 stream_url,
@@ -65,23 +65,44 @@ impl FfmpegCmd {
                 stream_metadata.width = stream.width;
                 stream_metadata.height = stream.height;
 
-                let r_frame_rate = &stream.r_frame_rate;
-                stream_metadata.fps = if let Some(pos) = r_frame_rate.find('/') {
-                    let num: u8 = r_frame_rate[..pos].parse().unwrap_or(0);
-                    let den: u8 = r_frame_rate[pos + 1..].parse().unwrap_or(1);
-                    Some(num / den)
+                stream_metadata.fps = if let Some(r_frame_rate) = &stream.r_frame_rate {
+                    if let Some(pos) = r_frame_rate.find('/') {
+                        let numerator_str = &r_frame_rate[..pos];
+                        let denominator_str = &r_frame_rate[pos + 1..];
+
+                        match (numerator_str.parse::<u8>(), denominator_str.parse::<u8>()) {
+                            (Ok(num), Ok(den)) if den != 0 => Some(num / den),
+                            _ => {
+                                debug!("无效的帧率格式: {}", r_frame_rate);
+                                None
+                            }
+                        }
+                    } else {
+                        debug!("帧率格式不包含'/': {}", r_frame_rate);
+                        None
+                    }
                 } else {
                     None
                 }
             } else if stream.codec_type == "audio" {
-                let codec_name = stream.codec_name.clone().ok_or_else(|| {
-                    FfmpegError::FfprobeParseFail("缺少codec_name字段".to_string())
-                })?;
-                stream_metadata.audio_codec = Some(match codec_name.as_str() {
-                    "aac" => AudioCodecType::AAC,
-                    "mp3" => AudioCodecType::MP3,
-                    codec_name_str => AudioCodecType::Other(codec_name_str.to_string()),
-                })
+                stream_metadata.audio_codec =
+                    Some(if let Some(codec_name) = stream.codec_name.clone() {
+                        match codec_name.as_str() {
+                            "aac" => AudioCodecType::AAC,
+                            "mp2" => AudioCodecType::MP2,
+                            "mp3" => AudioCodecType::MP3,
+                            "pcm_mulaw" => AudioCodecType::G711mulaw,
+                            "pcm_alaw" => AudioCodecType::G711alaw,
+                            "adpcm_g726le" => AudioCodecType::G726,
+                            codec_name_str => AudioCodecType::Other(codec_name_str.to_string()),
+                        }
+                    } else {
+                        AudioCodecType::Unknown
+                    });
+                stream_metadata.sample_rate = stream
+                    .sample_rate
+                    .as_ref()
+                    .and_then(|s| s.parse::<u32>().ok());
             }
         }
 
@@ -148,16 +169,16 @@ impl FfmpegCmd {
 
         // 构建基础参数
         let mut ffmpeg_args = vec![
-            "-rtsp_transport",      // 设置RTSP传输方式参数
-            "tcp",                  // 强制 TCP，防止丢包花屏
-            "-i",                   // 输入源参数
-            stream_url,             // 输入的RTSP流地址
-            "-f",                   // 输出格式参数
-            "flv",                  // 输出格式必须为 flv
-            "-flvflags",            // FLV 容器格式
+            "-rtsp_transport", // 设置RTSP传输方式参数
+            "tcp",             // 强制 TCP，防止丢包花屏
+            "-i",              // 输入源参数
+            stream_url,        // 输入的RTSP流地址
+            "-f",              // 输出格式参数
+            "flv",             // 输出格式必须为 flv
+            "-flvflags",       // FLV 容器格式
             "no_duration_filesize", // 指示 ffmpeg 在输出 FLV 文件时不计算和写入文件的总时长(duration)和大小(filesize)到 FLV 的头部信息中
-            // "-g",                   // 关键帧间隔参数
-            // "25",                   // 关键帧间隔为 25 帧（每 25 帧插入一个关键帧）
+                                    // "-g",                   // 关键帧间隔参数
+                                    // "25",                   // 关键帧间隔为 25 帧（每 25 帧插入一个关键帧）
         ];
 
         // 根据编码类型添加特定参数
@@ -192,7 +213,32 @@ impl FfmpegCmd {
         }
 
         match stream_metadata.audio_codec {
-            Some(AudioCodecType::AAC) | None => {}
+            Some(AudioCodecType::AAC) => {
+                ffmpeg_args.extend_from_slice(&[
+                    "-c:a", // 音频编解码器设置参数
+                    "copy", // 音频转为 aac (flv 需要)
+                ]);
+            }
+            Some(AudioCodecType::MP3) => {
+                if let Some(sample_rate) = stream_metadata.sample_rate
+                    && ([44100, 22050, 11025].contains(&sample_rate))
+                {
+                    ffmpeg_args.extend_from_slice(&[
+                        "-c:a", // 音频编解码器设置参数
+                        "copy", // 音频转为 aac (flv 需要)
+                    ]);
+                } else {
+                    ffmpeg_args.extend_from_slice(&[
+                        "-c:a", // 音频编解码器设置参数
+                        "aac",  // 音频转为 aac (flv 需要)
+                    ]);
+                }
+            }
+            Some(AudioCodecType::Unknown | AudioCodecType::NotSupported(_)) | None => {
+                ffmpeg_args.extend_from_slice(&[
+                    "-an", // 禁用音频流，不处理也不输出任何音频
+                ]);
+            }
             Some(_) => {
                 ffmpeg_args.extend_from_slice(&[
                     "-c:a", // 音频编解码器设置参数

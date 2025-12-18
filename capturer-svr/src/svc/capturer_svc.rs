@@ -37,19 +37,17 @@ impl CapturerSvc {
             )
             .await?;
 
-        Ok(match oss_file_api_ro.result {
-            RoResult::Success => oss_file_api_ro.msg("抓拍成功".to_string()),
-            _ => {
-                let msg = oss_file_api_ro.msg.clone();
-                oss_file_api_ro.msg(format!("抓拍失败: {}", msg))
-            }
+        Ok(if let RoResult::Success = oss_file_api_ro.result {
+            oss_file_api_ro.msg("抓拍成功".to_string())
+        } else {
+            let msg = oss_file_api_ro.msg.clone();
+            oss_file_api_ro.msg(format!("抓拍失败: {}", msg))
         })
     }
 
     pub async fn stream(dto: CapturerGetStreamDto) -> Result<FlvStream, SvcError> {
-        let channel_capacity = SETTINGS.get().unwrap().capturer.stream.channel_capacity;
         let (data_receiver, header, cache_header_sender) = STREAM_MANAGER
-            .get_data_receiver(dto.stream_url.unwrap().as_str(), channel_capacity)
+            .get_data_receiver(dto.stream_url.unwrap().as_str())
             .await
             .map_err(|e| RuntimeXError("获取流异常".to_string(), Box::new(e)))?;
         Ok(FlvStream::new(

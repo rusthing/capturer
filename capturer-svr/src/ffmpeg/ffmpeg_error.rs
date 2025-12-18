@@ -20,4 +20,6 @@ pub enum FfmpegError {
     FfmpegKillError(Error),
     #[error("ffmpeg发送数据失败: {0}")]
     FfmpegSendError(SendError<Bytes>),
+    #[error("读取ffmpeg会话失败: {0}")]
+    FfmpegSessionReadError(String),
 }

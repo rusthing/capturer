@@ -1,51 +1,89 @@
 use crate::ffmpeg::ffmpeg_cmd::FfmpegCmd;
 use crate::ffmpeg::ffmpeg_error::FfmpegError;
+use crate::ffmpeg::ffmpeg_session::FfmpegSession;
 use crate::settings::capturer_settings::StreamSettings;
 use crate::settings::settings::SETTINGS;
-use crate::stream::stream_session::StreamSession;
 use bytes::Bytes;
 use chrono::{Duration, Utc};
-use log::{debug, info};
+use log::{debug, error, info, warn};
 use rustc_hash::FxHashMap;
 use std::sync::{Arc, LazyLock, OnceLock, RwLock};
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::{broadcast, oneshot};
 use tokio::time::{interval, Duration as TokioDuration};
-use wheel_rs::cmd::spawn::kill_process;
 
+/// 全局静态的流管理器实例
 pub static STREAM_MANAGER: LazyLock<StreamManager> = LazyLock::new(|| StreamManager::new());
 
+/// 流管理器，负责管理ffmpeg流会话
+///
+/// 该管理器维护一个会话映射表，用于存储和管理所有活动的流会话。
+/// 它还负责定期清理过期的会话，并处理会话生命周期相关事件。
 pub struct StreamManager {
-    sessions: Arc<RwLock<FxHashMap<String, StreamSession>>>,
+    /// 广播通道容量
+    channel_capacity: usize,
+    /// 会话存储映射表，使用URL作为键，FfmpegSession作为值
+    sessions: Arc<RwLock<FxHashMap<String, FfmpegSession>>>,
 }
 
 impl StreamManager {
+    /// 创建一个新的流管理器实例
+    ///
+    /// 该函数会从配置中读取相关设置，并启动后台任务来定期清理过期会话。
     pub fn new() -> Self {
         let StreamSettings {
-            check_interval_seconds,
-            timeout_seconds,
+            channel_capacity,
+            session_check_interval_seconds,
+            session_timeout_seconds,
             ..
-        } = SETTINGS.get().unwrap().capturer.stream;
-        let sessions: Arc<RwLock<FxHashMap<String, StreamSession>>> =
+        } = SETTINGS.get().expect("无法获取设置").capturer.stream;
+
+        // 创建会话容器
+        let sessions: Arc<RwLock<FxHashMap<String, FfmpegSession>>> =
             Arc::new(RwLock::new(FxHashMap::default()));
-        // 定时检查器
-        let mut interval_timer = interval(TokioDuration::from_secs(check_interval_seconds));
+
         info!("<定时清除过期会话>任务正在创建....");
-        let sessions_clone = sessions.clone();
+        let mut interval = interval(TokioDuration::from_secs(session_check_interval_seconds));
+        let sessions_clone = Arc::clone(&sessions);
         tokio::spawn(async move {
-            info!("<定时清除过期会话>任务创建完成. 定时检查间隔: {check_interval_seconds}秒");
+            info!(
+                "<定时清除过期会话>任务创建完成. 定时检查间隔: {session_check_interval_seconds}秒"
+            );
             loop {
-                interval_timer.tick().await;
-                Self::cleanup_expired_sessions(sessions_clone.clone(), timeout_seconds).await;
+                interval.tick().await;
+                Self::cleanup_expired_sessions(sessions_clone.clone(), session_timeout_seconds)
+                    .await;
             }
         });
-        Self { sessions }
+
+        Self {
+            channel_capacity,
+            sessions,
+        }
     }
 
+    /// 获取指定URL的数据接收器
+    ///
+    /// 如果该URL对应的会话已存在，则返回现有会话的数据接收器；
+    /// 否则创建一个新的ffmpeg会话并返回其数据接收器。
+    ///
+    /// # 参数
+    ///
+    /// * `url`: 流媒体地址
+    ///
+    /// # 返回值
+    ///
+    /// 返回一个包含以下元素的元组：
+    /// * `Receiver<Bytes>`: 数据接收器
+    /// * `Arc<OnceLock<Bytes>>`: 视频头部信息缓存
+    /// * `Option<oneshot::Sender<Bytes>>`: 缓存头部信息发送器（仅新会话有）
+    ///
+    /// # 错误处理
+    ///
+    /// 如果无法获取锁或ffmpeg命令执行失败，将返回相应的错误。
     pub async fn get_data_receiver(
         &self,
         url: &str,
-        channel_capacity: usize,
     ) -> Result<
         (
             Receiver<Bytes>,
@@ -55,137 +93,241 @@ impl StreamManager {
         FfmpegError,
     > {
         let sessions = &self.sessions;
-        Ok(
-            if let Some(stream_session) = sessions.read().unwrap().get(url) {
-                *stream_session.last_access_datetime.write().unwrap() = None;
-                (
-                    stream_session.data_sender.subscribe(),
-                    Arc::clone(&stream_session.header),
-                    None,
-                )
-            } else {
-                {
-                    let read_buffer_size = SETTINGS.get().unwrap().capturer.stream.read_buffer_size;
-                    let (data_sender, data_receiver) = broadcast::channel(channel_capacity);
-                    let (process_exit_sender, process_exit_receiver) = oneshot::channel();
-                    let (cache_header_sender, cache_header_receiver) = oneshot::channel();
-                    let last_access_datetime = Arc::new(RwLock::new(None));
 
-                    info!("开始拉流与解码....");
-                    let child = Arc::new(
-                        FfmpegCmd::pull_and_transcode_stream(
-                            url,
-                            data_sender.clone(),
-                            process_exit_sender,
-                            read_buffer_size,
-                        )
-                        .await?,
-                    );
-                    let child_id = child.id().unwrap();
-                    info!("ffmpeg child pid: {child_id}");
+        // 尝试获取读锁
+        let sessions_read_lock = sessions.read().map_err(|e| {
+            error!("无法获取会话读锁: {}", e);
+            FfmpegError::FfmpegSessionReadError("无法获取会话读锁".to_string())
+        })?;
 
-                    info!("<子进程{child_id}>会话正在创建....");
-                    let data_sender = Arc::new(data_sender);
-                    let header = Arc::new(OnceLock::new());
-                    let session = StreamSession {
-                        child: child.clone(),
-                        last_access_datetime,
-                        data_sender,
-                        header: Arc::clone(&header),
-                    };
+        // 检查是否存在现有会话
+        if let Some(session) = sessions_read_lock.get(url) {
+            // 更新最后访问时间为None（表示活跃中）
+            {
+                let mut session_write_lock = session.last_access_datetime.write().map_err(|e| {
+                    error!("无法获取 last_access_datetime 写锁: {}", e);
+                    FfmpegError::FfmpegSessionReadError(
+                        "无法获取 last_access_datetime 写锁".to_string(),
+                    )
+                })?;
+                *session_write_lock = None;
+            }
+
+            return Ok((
+                session.data_sender.subscribe(),
+                Arc::clone(&session.header),
+                None,
+            ));
+        }
+
+        // 释放读锁
+        drop(sessions_read_lock);
+
+        // 创建新会话
+        let read_buffer_size = SETTINGS
+            .get()
+            .expect("无法获取设置")
+            .capturer
+            .stream
+            .read_buffer_size;
+
+        let (data_sender, data_receiver) = broadcast::channel(self.channel_capacity);
+        let (process_exit_sender, process_exit_receiver) = oneshot::channel();
+        let (cache_header_sender, cache_header_receiver) = oneshot::channel();
+        let last_access_datetime = Arc::new(RwLock::new(None));
+
+        info!("开始拉流与解码....");
+        let child = Arc::new(
+            FfmpegCmd::pull_and_transcode_stream(
+                url,
+                data_sender.clone(),
+                process_exit_sender,
+                read_buffer_size,
+            )
+            .await?,
+        );
+
+        let child_id = child
+            .id()
+            .ok_or_else(|| FfmpegError::FfmpegSessionReadError("无法获取子进程ID".to_string()))?;
+        info!("ffmpeg child pid: {child_id}");
+
+        info!("<子进程{child_id}>会话正在创建....");
+        let data_sender = Arc::new(data_sender);
+        let header = Arc::new(OnceLock::new());
+        let session = FfmpegSession {
+            child_id,
+            last_access_datetime,
+            data_sender: Arc::clone(&data_sender),
+            header: Arc::clone(&header),
+        };
+
+        // 插入新会话到会话映射表
+        {
+            let mut sessions_write_lock = sessions.write().map_err(|e| {
+                error!("无法获取会话写锁: {}", e);
+                FfmpegError::FfmpegSessionReadError("无法获取会话写锁".to_string())
+            })?;
+            sessions_write_lock.insert(url.to_string(), session.clone());
+        }
+        info!("<子进程{child_id}>会话创建完成.");
+
+        // 启动监听数据订阅者数量的任务
+        info!("<监听子进程{child_id}数据订阅者数量>任务正在创建....");
+        let mut interval = interval(TokioDuration::from_secs(5));
+        let session_clone = Arc::new(session);
+        tokio::spawn(async move {
+            info!("<监听子进程{child_id}数据订阅者数量>任务创建完成. 定时检查间隔: 5秒");
+            loop {
+                interval.tick().await;
+
+                if data_sender.receiver_count() == 0 {
+                    // 尝试获取读锁
+                    if let Ok(last_access_datetime_read_lock) =
+                        session_clone.last_access_datetime.read()
                     {
-                        let mut write_guard = sessions.write().unwrap();
-                        write_guard.insert(url.to_string(), session.clone());
+                        let last_access_datetime_val = *last_access_datetime_read_lock;
+
+                        if last_access_datetime_val.is_none() {
+                            debug!("子进程{child_id}数据订阅者数量==0，记录会话过期时间");
+
+                            // 尝试获取写锁更新过期时间
+                            if let Ok(mut last_access_datetime_write_lock) =
+                                session_clone.last_access_datetime.write()
+                            {
+                                *last_access_datetime_write_lock = Some(Utc::now());
+                            } else {
+                                warn!("无法获取 last_access_datetime 写锁");
+                            }
+                        }
+                    } else {
+                        warn!("无法获取 last_access_datetime 读锁");
                     }
-                    info!("<子进程{child_id}>会话创建完成.");
-
-                    info!("<监听子进程{child_id}缓存头部>任务正在创建....");
-                    let header_clone = Arc::clone(&header);
-                    tokio::spawn(async move {
-                        info!("<监听子进程{child_id}缓存头部>任务创建完成.");
-                        let bytes = cache_header_receiver.await.unwrap();
-                        debug!("子进程{child_id}缓存头部: {:?}", bytes);
-                        let _ = header_clone.set(bytes);
-                    });
-
-                    info!("<监听子进程{child_id}退出>任务正在创建....");
-                    let sessions_clone = sessions.clone();
-                    tokio::spawn(async move {
-                        info!("<监听子进程{child_id}退出>任务创建完成.");
-                        let _ = process_exit_receiver.await;
-                        debug!("检测到子进程{child_id}已经退出");
-                        Self::remove_session_after_process_exit(sessions_clone, child_id).await;
-                    });
-
-                    (data_receiver, header, Some(cache_header_sender))
                 }
-            },
-        )
+            }
+        });
+
+        // 启动监听缓存头部的任务
+        info!("<监听子进程{child_id}缓存头部>任务正在创建....");
+        let header_clone = Arc::clone(&header);
+        let cache_header_receiver_clone = cache_header_receiver; // 重命名变量避免混淆
+        tokio::spawn(async move {
+            info!("<监听子进程{child_id}缓存头部>任务创建完成.");
+            if let Ok(bytes) = cache_header_receiver_clone.await {
+                debug!("子进程{child_id}缓存头部: {:?}", bytes);
+                let _ = header_clone.set(bytes);
+            } else {
+                warn!("无法接收缓存头部数据");
+            }
+        });
+
+        // 启动监听子进程退出的任务
+        info!("<监听子进程{child_id}退出>任务正在创建....");
+        let sessions_clone = Arc::clone(&self.sessions);
+        tokio::spawn(async move {
+            info!("<监听子进程{child_id}退出>任务创建完成.");
+            if let Ok(_) = process_exit_receiver.await {
+                debug!("检测到子进程{child_id}已经退出");
+                Self::remove_session_after_process_exit(sessions_clone, child_id).await;
+            } else {
+                warn!("监听子进程退出通道异常关闭");
+            }
+        });
+
+        Ok((data_receiver, header, Some(cache_header_sender)))
     }
 
     /// 进程退出后删除会话
+    ///
+    /// 当ffmpeg子进程退出时，该函数会被调用以清理对应的会话记录。
+    ///
+    /// # 参数
+    ///
+    /// * `sessions`: 会话存储映射表的引用
+    /// * `child_id`: 退出的子进程ID
     async fn remove_session_after_process_exit(
-        sessions: Arc<RwLock<FxHashMap<String, StreamSession>>>,
+        sessions: Arc<RwLock<FxHashMap<String, FfmpegSession>>>,
         child_id: u32,
     ) {
         debug!("子进程{child_id}退出后删除会话");
         let mut remove_key = None;
-        {
-            let read_guard = sessions.read().unwrap();
-            for (key, session) in read_guard.iter() {
-                if session.child.id().unwrap() == child_id {
+
+        // 查找对应会话
+        if let Ok(sessions_read_lock) = sessions.read() {
+            for (key, session) in sessions_read_lock.iter() {
+                if session.child_id == child_id {
                     remove_key = Some(key.clone());
                     break;
                 }
             }
+        } else {
+            warn!("无法获取 sessions 读锁");
+            return;
         }
-        let remove_key = remove_key.unwrap();
-        debug!("删除会话: {}", remove_key);
-        {
-            let mut write_guard = sessions.write().unwrap();
-            write_guard.remove(&remove_key);
+
+        // 删除找到的会话
+        if let Some(remove_key) = remove_key {
+            debug!("删除会话: {}", remove_key);
+            if let Ok(mut sessions_write_lock) = sessions.write() {
+                sessions_write_lock.remove(&remove_key);
+            } else {
+                warn!("无法获取 sessions 写锁");
+            }
         }
     }
 
     /// 清理超过一定时间未访问的会话
+    ///
+    /// 定期执行的清理任务，会遍历所有会话并移除超时的会话。
+    ///
+    /// # 参数
+    ///
+    /// * `sessions`: 会话存储映射表的引用
+    /// * `timeout_seconds`: 会话超时时间（秒）
     async fn cleanup_expired_sessions(
-        sessions: Arc<RwLock<FxHashMap<String, StreamSession>>>,
+        sessions: Arc<RwLock<FxHashMap<String, FfmpegSession>>>,
         timeout_seconds: u64,
     ) {
-        debug!("开始清理过期会话....");
-        let cut_off_datetime = Utc::now() - Duration::minutes(timeout_seconds as i64);
+        debug!("开始执行<清理过期会话>任务....");
         let mut expired_keys = Vec::new();
 
         // 收集过期的会话键
-        {
-            let sessions_read_lock = sessions.read().unwrap();
+        if let Ok(sessions_read_lock) = sessions.read() {
             for (key, session) in sessions_read_lock.iter() {
-                let last_access_datetime_lock = session.last_access_datetime.read().unwrap();
-                if let Some(last_access_datetime) = *last_access_datetime_lock {
-                    if last_access_datetime < cut_off_datetime {
-                        expired_keys.push((key.clone(), Arc::clone(&session.child)));
+                if let Ok(last_access_datetime_read_lock) = session.last_access_datetime.read() {
+                    if let Some(last_access_datetime) = *last_access_datetime_read_lock {
+                        let cut_off_datetime =
+                            last_access_datetime + Duration::seconds(timeout_seconds as i64);
+                        debug!(
+                            "会话{key}最后访问时间: {last_access_datetime}, 过期时间: {cut_off_datetime}"
+                        );
+                        if Utc::now() > cut_off_datetime {
+                            expired_keys.push(key.clone());
+                        }
                     }
+                } else {
+                    warn!("无法获取 last_access_datetime 读锁");
                 }
             }
+        } else {
+            warn!("无法获取 sessions 读锁");
+            return;
         }
 
+        // 删除过期会话
         if !expired_keys.is_empty() {
             info!("<清理过期会话>任务正在创建....");
+            let sessions_clone = Arc::clone(&sessions);
             tokio::spawn(async move {
                 info!("<清理过期会话>任务创建完成.");
-                for (key, child) in expired_keys {
+                for key in expired_keys {
                     debug!("开始删除会话{key}....");
-                    {
-                        let mut write_guard = sessions.write().unwrap();
-                        write_guard.remove(&key);
+                    if let Ok(mut sessions_write_lock) = sessions_clone.write() {
+                        sessions_write_lock.remove(&key);
+                    } else {
+                        warn!("无法获取 sessions 写锁");
                     }
                     debug!("会话{key}删除完成.");
-                    let child = Arc::try_unwrap(child).unwrap();
-                    let child_id = child.id().unwrap();
-                    debug!("开始查杀子进程{child_id}....");
-                    // 在独立任务中杀掉子进程，避免阻塞清理过程
-                    let _ = kill_process(child).await;
-                    debug!("子进程{child_id}查杀完成.");
                 }
             });
         }

@@ -42,11 +42,6 @@ pub async fn stream(
 
     // 从header中解析当前用户ID，如果没有或解析失败则抛出ApiError
     // dto.current_user_id = get_current_user_id(req)?;
-    //
-    // let stream = STREAM_MANAGER
-    //     .get_receiver(dto.stream_url.unwrap().as_str())
-    //     .await
-    //     .map_err(|e| RuntimeXError("获取流异常".to_string(), Box::new(e)))?;
 
     Ok(HttpResponse::Ok()
         .content_type("video/x-flv")

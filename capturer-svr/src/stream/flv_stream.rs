@@ -49,7 +49,9 @@ impl Stream for FlvStream {
             Ok(bytes) => {
                 if is_init {
                     this.is_init = false;
-                    let _ = this.cache_header_sender.take().unwrap().send(bytes.clone());
+                    if let Some(cache_header_sender) = this.cache_header_sender.take() {
+                        let _ = cache_header_sender.send(bytes.clone());
+                    }
                 }
                 Poll::Ready(Some(Ok(bytes)))
             }

@@ -6,7 +6,8 @@ pub struct FfprobeCmdStreamsInfo {
     pub codec_name: Option<String>,
     pub width: Option<u32>,
     pub height: Option<u32>,
-    pub r_frame_rate: String,
+    pub r_frame_rate: Option<String>,
+    pub sample_rate: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -33,8 +34,18 @@ pub enum AudioCodecType {
     Unknown,
     /// AAC 编解码器
     AAC,
+    /// MP2 编解码器
+    MP2,
     /// MP3 编解码器
     MP3,
+    /// PCM Mu-law 编解码器
+    G711mulaw,
+    /// PCM A-law 编解码器
+    G711alaw,
+    /// ADPCM G.726-LE 编解码器
+    G726,
+    /// 不支持的音频编解码器，携带原始编解码器名称
+    NotSupported(String),
     /// 其它编解码器，携带原始编解码器名称
     Other(String),
 }
@@ -52,41 +63,6 @@ pub struct StreamMetadata {
     pub height: Option<u32>,
     /// 帧率
     pub fps: Option<u8>,
+    /// 音频采样率
+    pub sample_rate: Option<u32>,
 }
-//
-// /// 流媒体会话结构
-// #[derive(Clone)]
-// pub struct StreamSession {
-//     /// 流ID
-//     pub stream_id: String,
-//     /// RTSP地址
-//     pub rtsp_url: String,
-//     /// 最后访问时间
-//     pub last_access: Arc<RwLock<DateTime<Utc>>>,
-//     /// 是否激活状态
-//     pub is_active: Arc<RwLock<bool>>,
-//     /// 帧缓冲区
-//     pub frame_buffer: Arc<RwLock<Vec<u8>>>,
-//     /// 流媒体元数据
-//     pub metadata: Arc<RwLock<Option<StreamMetadata>>>,
-//     /// ffmpeg进程
-//     pub ffmpeg_process: Arc<RwLock<Option<Child>>>,
-//     /// 错误计数
-//     pub error_count: Arc<RwLock<u32>>,
-//     /// 最后错误时间
-//     pub last_error_time: Arc<RwLock<Option<DateTime<Utc>>>>,
-//     /// 重启计数
-//     pub restart_count: Arc<RwLock<u32>>,
-// }
-//
-// /// 流管理器
-// pub struct StreamManager {
-//     /// 会话集合
-//     sessions: Arc<DashMap<String, StreamSession>>,
-//     /// 空闲超时秒数
-//     idle_timeout_secs: u64,
-//     /// 最大重启尝试次数
-//     max_restart_attempts: u32,
-//     /// 错误阈值
-//     error_threshold: u32,
-// }

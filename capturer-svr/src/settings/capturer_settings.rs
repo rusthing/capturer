@@ -15,15 +15,15 @@ pub struct StreamSettings {
     /// 读取缓冲区大小
     #[serde()]
     pub read_buffer_size: Option<usize>,
-    /// 进程检查间隔(单位为秒，默认60)
-    #[serde(default = "check_interval_seconds_default")]
-    pub check_interval_seconds: u64,
-    /// 超时时间(单位为秒，默认30*60)
-    #[serde(default = "timeout_seconds_default")]
-    pub timeout_seconds: u64,
     /// 通道容量(默认100)
     #[serde(default = "channel_capacity_default")]
     pub channel_capacity: usize,
+    /// 进程检查间隔(单位为秒，默认60)
+    #[serde(default = "session_check_interval_seconds_default")]
+    pub session_check_interval_seconds: u64,
+    /// 超时时间(单位为秒，默认30*60)
+    #[serde(default = "session_timeout_seconds_default")]
+    pub session_timeout_seconds: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -50,8 +50,8 @@ impl Default for StreamSettings {
     fn default() -> Self {
         StreamSettings {
             read_buffer_size: None,
-            check_interval_seconds: check_interval_seconds_default(),
-            timeout_seconds: timeout_seconds_default(),
+            session_check_interval_seconds: session_check_interval_seconds_default(),
+            session_timeout_seconds: session_timeout_seconds_default(),
             channel_capacity: channel_capacity_default(),
         }
     }
@@ -73,11 +73,11 @@ fn jpeg_quality_default() -> u8 {
     1
 }
 
-fn check_interval_seconds_default() -> u64 {
+fn session_check_interval_seconds_default() -> u64 {
     60
 }
 
-fn timeout_seconds_default() -> u64 {
+fn session_timeout_seconds_default() -> u64 {
     30 * 60
 }
 

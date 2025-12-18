@@ -9,7 +9,7 @@ use log::{debug, error, info, warn};
 use rustc_hash::FxHashMap;
 use std::sync::{Arc, LazyLock, OnceLock, RwLock};
 use tokio::sync::broadcast::Receiver;
-use tokio::sync::{broadcast, oneshot};
+use tokio::sync::{broadcast, oneshot, watch};
 use tokio::time::{interval, Duration as TokioDuration};
 
 /// 全局静态的流管理器实例
@@ -22,6 +22,8 @@ pub static STREAM_MANAGER: LazyLock<StreamManager> = LazyLock::new(|| StreamMana
 pub struct StreamManager {
     /// 广播通道容量
     channel_capacity: usize,
+    /// 读取缓冲区大小
+    read_buffer_size: Option<usize>,
     /// 会话存储映射表，使用URL作为键，FfmpegSession作为值
     sessions: Arc<RwLock<FxHashMap<String, FfmpegSession>>>,
 }
@@ -35,8 +37,13 @@ impl StreamManager {
             channel_capacity,
             session_check_interval_seconds,
             session_timeout_seconds,
+            read_buffer_size,
             ..
-        } = SETTINGS.get().expect("无法获取设置").capturer.stream;
+        } = SETTINGS
+            .get()
+            .expect("无法获取stream的设置")
+            .capturer
+            .stream;
 
         // 创建会话容器
         let sessions: Arc<RwLock<FxHashMap<String, FfmpegSession>>> =
@@ -58,6 +65,7 @@ impl StreamManager {
 
         Self {
             channel_capacity,
+            read_buffer_size,
             sessions,
         }
     }
@@ -124,13 +132,6 @@ impl StreamManager {
         drop(sessions_read_lock);
 
         // 创建新会话
-        let read_buffer_size = SETTINGS
-            .get()
-            .expect("无法获取设置")
-            .capturer
-            .stream
-            .read_buffer_size;
-
         let (data_sender, data_receiver) = broadcast::channel(self.channel_capacity);
         let (process_exit_sender, process_exit_receiver) = oneshot::channel();
         let (cache_header_sender, cache_header_receiver) = oneshot::channel();
@@ -142,7 +143,7 @@ impl StreamManager {
                 url,
                 data_sender.clone(),
                 process_exit_sender,
-                read_buffer_size,
+                self.read_buffer_size,
             )
             .await?,
         );

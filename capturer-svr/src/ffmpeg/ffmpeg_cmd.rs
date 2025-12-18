@@ -33,13 +33,14 @@ impl FfmpegCmd {
         let stdout = cmd::std::execute(
             "ffprobe",
             &[
-                "-v error",      // 设置日志级别为error，只显示错误信息
-                "-show_streams", // 显示流信息
-                "-show_entries", // 指定要显示的条目
-                // 指定要显示的流字段：编码类型、编码名称、宽度、高度、帧率、采样率
-                "stream=codec_type,codec_name,width,height,r_frame_rate,sample_rate",
-                "-of json", // 设置输出格式为JSON
-                stream_url, // 输入的流URL
+                "-v",            // 设置ffprobe的日志级别参数
+                "error",         // 日志级别为error，只显示错误信息
+                "-show_streams", // 显示输入文件的所有流信息
+                "-show_entries", // 指定要显示的流条目参数
+                "stream=codec_type,codec_name,width,height,r_frame_rate,sample_rate", // 指定要显示的具体字段：编码类型、编码名称、宽度、高度、帧率、采样率
+                "-of",      // 设置输出格式参数
+                "json",     // 输出格式为JSON，便于程序解析
+                stream_url, // 输入的RTSP流地址
             ],
         )?;
 
@@ -126,15 +127,19 @@ impl FfmpegCmd {
         Ok(cmd::std::execute(
             "ffmpeg",
             &[
-                "-rtsp_transport tcp", // 使用TCP传输
-                "-i",                  // 指定输入源参数
-                stream_url,            // 输入的RTSP流地址
-                "-vframes 1",          // 只抓取1帧
-                "-f image2pipe",       // 输出格式为图像管道
-                "-c:v mjpeg",          // 使用MJPEG编码
-                "-q:v",                // 设置视频质量参数
-                jpeg_quality,          // JPEG质量等级，1-31，数值越小质量越高
-                "pipe:1",              // 输出到标准输出管道
+                "-rtsp_transport", // 设置RTSP传输方式参数
+                "tcp",             // 使用TCP协议传输（更稳定）
+                "-i",              // 指定输入源参数
+                stream_url,        // 输入的RTSP流地址
+                "-vframes",        // 设置要输出的视频帧数参数
+                "1",               // 只抓取一帧画面
+                "-f",              // 指定输出格式参数
+                "image2pipe",      // 图像格式（JPEG、PNG等通用图像格式容器）
+                "-c:v",            // 设置视频编解码器参数
+                "mjpeg",           // 使用MJPEG编码
+                "-q:v",            // 设置视频质量参数
+                jpeg_quality,      // JPEG质量等级，1-31，数值越小质量越高
+                "pipe:1",          // 输出到标准输出管道
             ],
         )?)
     }
@@ -164,12 +169,16 @@ impl FfmpegCmd {
 
         // 构建基础参数
         let mut ffmpeg_args = vec![
-            "-rtsp_transport tcp", // 设置RTSP传输方式参数，强制 TCP，防止丢包花屏
-            "-i",                  // 输入源参数
-            stream_url,            // 输入的RTSP流地址
-            "-f flv",              // 输出格式参数，必须为 flv
-            "-flvflags no_duration_filesize", // FLV 容器格式，指示 ffmpeg 在输出 FLV 文件时不计算和写入文件的总时长(duration)和大小(filesize)到 FLV 的头部信息中
-                                              // "-g 25",                   // 关键帧间隔参数，关键帧间隔为 25 帧（每 25 帧插入一个关键帧）
+            "-rtsp_transport", // 设置RTSP传输方式参数
+            "tcp",             // 强制 TCP，防止丢包花屏
+            "-i",              // 输入源参数
+            stream_url,        // 输入的RTSP流地址
+            "-f",              // 输出格式参数
+            "flv",             // 输出格式必须为 flv
+            "-flvflags",       // FLV 容器格式
+            "no_duration_filesize", // 指示 ffmpeg 在输出 FLV 文件时不计算和写入文件的总时长(duration)和大小(filesize)到 FLV 的头部信息中
+                                    // "-g",                   // 关键帧间隔参数
+                                    // "25",                   // 关键帧间隔为 25 帧（每 25 帧插入一个关键帧）
         ];
 
         // 根据编码类型添加特定参数
@@ -187,12 +196,18 @@ impl FfmpegCmd {
             // H.265或未知编码使用H.264转码
             VideoCodecType::H265 | VideoCodecType::Other(_) => {
                 ffmpeg_args.extend_from_slice(&[
-                    "-c:v libx264",        // 视频编解码器设置参数，使用H.264编码(flv 需要)
-                    "-preset superfast", // 编码预设参数，超快速编码（低延迟，较低压缩率，比ultrafast稍慢但CPU占用更低）
-                    "-tune zerolatency", // 编码调优参数，零延迟调优
-                    "-crf 32",           // 码率控制参数，码率控制等级，范围0-51，数值越小质量越高
-                    "-profile:v baseline", // 编码档次，baseline档次，编码复杂度最低
-                    "-threads 1",        // 线程数，限制线程数以减少CPU占用
+                    "-c:v",        // 视频编解码器设置参数
+                    "libx264",     // 使用H.264编码(flv 需要)
+                    "-preset",     // 编码预设参数
+                    "superfast",   // 超快速编码（低延迟，较低压缩率，比ultrafast稍慢但CPU占用更低）
+                    "-tune",       // 编码调优参数
+                    "zerolatency", // 零延迟调优
+                    "-crf",        // 码率控制参数
+                    "32",          // 码率控制等级，范围0-51，数值越小质量越高
+                    "-profile:v",  // 编码档次
+                    "baseline",    // baseline档次，编码复杂度最低
+                    "-threads",    // 线程数
+                    "1",           // 限制线程数以减少CPU占用
                 ]);
             }
         }

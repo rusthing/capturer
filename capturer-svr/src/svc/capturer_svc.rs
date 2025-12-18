@@ -47,16 +47,18 @@ impl CapturerSvc {
     }
 
     pub async fn stream(dto: CapturerGetStreamDto) -> Result<impl Stream<Item = Result<bytes::Bytes, SvcError>>, SvcError> {
+        debug!("获取stream_manager实例...");
         let (data_receiver, header, cache_header_sender) = STREAM_MANAGER
             .get_data_receiver(dto.stream_url.unwrap().as_str())
             .await
             .map_err(|e| RuntimeXError("获取流异常".to_string(), Box::new(e)))?;
+        debug!("获取flv_stream实例...");
         let flv_stream = FlvStream::new(
             data_receiver,
             Arc::clone(&header),
             cache_header_sender,
         );
-        
+        debug!("返回flv_stream...");
         Ok(flv_stream.into_stream())
     }
 }

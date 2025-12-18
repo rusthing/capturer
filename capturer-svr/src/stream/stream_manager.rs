@@ -9,7 +9,7 @@ use log::{debug, error, info, warn};
 use rustc_hash::FxHashMap;
 use std::sync::{Arc, LazyLock, OnceLock, RwLock};
 use tokio::sync::broadcast::Receiver;
-use tokio::sync::{broadcast, oneshot, watch};
+use tokio::sync::{broadcast, oneshot};
 use tokio::time::{interval, Duration as TokioDuration};
 
 /// 全局静态的流管理器实例
@@ -49,7 +49,7 @@ impl StreamManager {
         let sessions: Arc<RwLock<FxHashMap<String, FfmpegSession>>> =
             Arc::new(RwLock::new(FxHashMap::default()));
 
-        info!("<定时清除过期会话>任务正在创建....");
+        debug!("<定时清除过期会话>任务正在创建....");
         let mut interval = interval(TokioDuration::from_secs(session_check_interval_seconds));
         let sessions_clone = Arc::clone(&sessions);
         tokio::spawn(async move {
@@ -100,44 +100,46 @@ impl StreamManager {
         ),
         FfmpegError,
     > {
+        info!("获取数据接收器: {}", url);
         let sessions = &self.sessions;
+        {
+            debug!("获取会话读锁...");
+            let sessions_read_lock = sessions.read().map_err(|e| {
+                error!("无法获取会话读锁: {}", e);
+                FfmpegError::FfmpegSessionReadError("无法获取会话读锁".to_string())
+            })?;
 
-        // 尝试获取读锁
-        let sessions_read_lock = sessions.read().map_err(|e| {
-            error!("无法获取会话读锁: {}", e);
-            FfmpegError::FfmpegSessionReadError("无法获取会话读锁".to_string())
-        })?;
+            debug!("检查会话是否存在: {}", url);
+            if let Some(session) = sessions_read_lock.get(url) {
+                {
+                    debug!("获取 last_access_datetime 写锁...");
+                    let mut last_access_datetime_write_lock =
+                        session.last_access_datetime.write().map_err(|e| {
+                            error!("无法获取 last_access_datetime 写锁: {}", e);
+                            FfmpegError::FfmpegSessionReadError(
+                                "无法获取 last_access_datetime 写锁".to_string(),
+                            )
+                        })?;
+                    debug!("更新最后访问时间为None（表示活跃中）: {:?}", Utc::now());
+                    *last_access_datetime_write_lock = None;
+                }
 
-        // 检查是否存在现有会话
-        if let Some(session) = sessions_read_lock.get(url) {
-            // 更新最后访问时间为None（表示活跃中）
-            {
-                let mut session_write_lock = session.last_access_datetime.write().map_err(|e| {
-                    error!("无法获取 last_access_datetime 写锁: {}", e);
-                    FfmpegError::FfmpegSessionReadError(
-                        "无法获取 last_access_datetime 写锁".to_string(),
-                    )
-                })?;
-                *session_write_lock = None;
+                debug!("返回数据接收器...");
+                return Ok((
+                    session.data_sender.subscribe(),
+                    Arc::clone(&session.header),
+                    None,
+                ));
             }
-
-            return Ok((
-                session.data_sender.subscribe(),
-                Arc::clone(&session.header),
-                None,
-            ));
         }
 
-        // 释放读锁
-        drop(sessions_read_lock);
-
-        // 创建新会话
+        debug!("创建新会话...");
         let (data_sender, data_receiver) = broadcast::channel(self.channel_capacity);
         let (process_exit_sender, process_exit_receiver) = oneshot::channel();
         let (cache_header_sender, cache_header_receiver) = oneshot::channel();
         let last_access_datetime = Arc::new(RwLock::new(None));
 
-        info!("开始拉流与解码....");
+        // 拉流并解码
         let child = Arc::new(
             FfmpegCmd::pull_and_transcode_stream(
                 url,
@@ -151,7 +153,7 @@ impl StreamManager {
         let child_id = child
             .id()
             .ok_or_else(|| FfmpegError::FfmpegSessionReadError("无法获取子进程ID".to_string()))?;
-        info!("ffmpeg child pid: {child_id}");
+        debug!("ffmpeg child pid: {child_id}");
 
         info!("<子进程{child_id}>会话正在创建....");
         let data_sender = Arc::new(data_sender);
@@ -162,9 +164,9 @@ impl StreamManager {
             data_sender: Arc::clone(&data_sender),
             header: Arc::clone(&header),
         };
-
         // 插入新会话到会话映射表
         {
+            debug!("获取会话写锁...");
             let mut sessions_write_lock = sessions.write().map_err(|e| {
                 error!("无法获取会话写锁: {}", e);
                 FfmpegError::FfmpegSessionReadError("无法获取会话写锁".to_string())
@@ -183,26 +185,27 @@ impl StreamManager {
                 interval.tick().await;
 
                 if data_sender.receiver_count() == 0 {
-                    // 尝试获取读锁
-                    if let Ok(last_access_datetime_read_lock) =
+                    debug!("获取 last_access_datetime 读锁...");
+                    let last_access_datetime = if let Ok(last_access_datetime_read_lock) =
                         session_clone.last_access_datetime.read()
                     {
-                        let last_access_datetime_val = *last_access_datetime_read_lock;
-
-                        if last_access_datetime_val.is_none() {
-                            debug!("子进程{child_id}数据订阅者数量==0，记录会话过期时间");
-
-                            // 尝试获取写锁更新过期时间
-                            if let Ok(mut last_access_datetime_write_lock) =
-                                session_clone.last_access_datetime.write()
-                            {
-                                *last_access_datetime_write_lock = Some(Utc::now());
-                            } else {
-                                warn!("无法获取 last_access_datetime 写锁");
-                            }
-                        }
+                        *last_access_datetime_read_lock
                     } else {
                         warn!("无法获取 last_access_datetime 读锁");
+                        continue;
+                    };
+                    if last_access_datetime.is_none() {
+                        debug!("子进程{child_id}数据订阅者数量==0，记录会话过期时间");
+                        debug!("获取 last_access_datetime 写锁...");
+                        if let Ok(mut last_access_datetime_write_lock) =
+                            session_clone.last_access_datetime.write()
+                        {
+                            let now = Utc::now();
+                            debug!("更新最后访问时间为当前时间: {:?}", Utc::now());
+                            *last_access_datetime_write_lock = Some(now);
+                        } else {
+                            warn!("无法获取 last_access_datetime 写锁");
+                        }
                     }
                 }
             }
@@ -250,11 +253,12 @@ impl StreamManager {
         sessions: Arc<RwLock<FxHashMap<String, FfmpegSession>>>,
         child_id: u32,
     ) {
-        debug!("子进程{child_id}退出后删除会话");
+        info!("子进程{child_id}退出后删除会话");
         let mut remove_key = None;
 
-        // 查找对应会话
+        debug!("获取 sessions 读锁...");
         if let Ok(sessions_read_lock) = sessions.read() {
+            debug!("查找要删除子进程{child_id}的会话");
             for (key, session) in sessions_read_lock.iter() {
                 if session.child_id == child_id {
                     remove_key = Some(key.clone());
@@ -269,6 +273,7 @@ impl StreamManager {
         // 删除找到的会话
         if let Some(remove_key) = remove_key {
             debug!("删除会话: {}", remove_key);
+            debug!("获取 sessions 写锁...");
             if let Ok(mut sessions_write_lock) = sessions.write() {
                 sessions_write_lock.remove(&remove_key);
             } else {
@@ -289,13 +294,16 @@ impl StreamManager {
         sessions: Arc<RwLock<FxHashMap<String, FfmpegSession>>>,
         timeout_seconds: u64,
     ) {
-        debug!("开始执行<清理过期会话>任务....");
+        info!("开始执行<清理过期会话>任务....");
         let mut expired_keys = Vec::new();
 
-        // 收集过期的会话键
+        debug!("获取 sessions 读锁...");
         if let Ok(sessions_read_lock) = sessions.read() {
+            debug!("遍历所有会话, 检查是否过期...");
             for (key, session) in sessions_read_lock.iter() {
+                debug!("获取 last_access_datetime 读锁...");
                 if let Ok(last_access_datetime_read_lock) = session.last_access_datetime.read() {
+                    debug!("检查会话{key}是否过期....");
                     if let Some(last_access_datetime) = *last_access_datetime_read_lock {
                         let cut_off_datetime =
                             last_access_datetime + Duration::seconds(timeout_seconds as i64);
@@ -303,13 +311,17 @@ impl StreamManager {
                             "会话{key}最后访问时间: {last_access_datetime}, 过期时间: {cut_off_datetime}"
                         );
                         if Utc::now() > cut_off_datetime {
+                            debug!("会话{key}已过期, 需要删除会话");
                             expired_keys.push(key.clone());
+                        } else {
+                            debug!("会话{key}未过期, 无需删除");
                         }
                     }
                 } else {
                     warn!("无法获取 last_access_datetime 读锁");
                 }
             }
+            debug!("遍历完成, 删除过期会话...");
         } else {
             warn!("无法获取 sessions 读锁");
             return;

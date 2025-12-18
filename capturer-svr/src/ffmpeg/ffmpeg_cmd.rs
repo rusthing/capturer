@@ -1,7 +1,7 @@
 use crate::ffmpeg::ffmpeg_eo::{AudioCodecType, FfprobeCmdInfo, StreamMetadata, VideoCodecType};
 use crate::ffmpeg::ffmpeg_error::FfmpegError;
 use bytes::Bytes;
-use log::debug;
+use log::{debug, info};
 use tokio::process::Child;
 use tokio::sync::broadcast::Sender;
 use tokio::sync::oneshot;
@@ -29,7 +29,7 @@ impl FfmpegCmd {
     /// ## 返回值
     /// 返回包含流媒体元数据的Result
     pub async fn probe_stream_info(stream_url: &str) -> Result<StreamMetadata, FfmpegError> {
-        debug!("probe_stream_info: {}", stream_url);
+        info!("probe_stream_info {stream_url}....");
         let stdout = cmd::std::execute(
             "ffprobe",
             &[
@@ -122,7 +122,7 @@ impl FfmpegCmd {
         stream_url: &str,
         jpeg_quality: u8,
     ) -> Result<Vec<u8>, FfmpegError> {
-        debug!("capture_to_jpeg: {}", stream_url);
+        info!("capture_to_jpeg {stream_url}....");
         let jpeg_quality = &jpeg_quality.to_string();
         Ok(cmd::std::execute(
             "ffmpeg",
@@ -164,6 +164,7 @@ impl FfmpegCmd {
         process_exit_sender: oneshot::Sender<()>,
         read_buffer_size: Option<usize>,
     ) -> Result<Child, FfmpegError> {
+        info!("pull_and_transcode_stream {stream_url}....");
         // 先探测流信息
         let stream_metadata = Self::probe_stream_info(stream_url).await?;
 

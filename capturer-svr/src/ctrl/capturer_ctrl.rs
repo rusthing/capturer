@@ -1,6 +1,7 @@
 use crate::dto::capturer_dto::{CapturerCaptureToJpegDto, CapturerGetStreamDto};
 use crate::svc::capturer_svc::CapturerSvc;
 use actix_web::{get, post, web, HttpRequest, HttpResponse, Result};
+use log::info;
 use oss_api::vo::oss_obj_ref::OssObjRefVo;
 use robotech::ctrl::ctrl_error::CtrlError;
 use robotech::ctrl::ctrl_utils::get_current_user_id;
@@ -16,6 +17,7 @@ pub async fn capture_to_jpg(
     json_body: web::Json<CapturerCaptureToJpegDto>,
     req: HttpRequest,
 ) -> Result<HttpResponse, CtrlError> {
+    info!("capture_to_jpg");
     let mut dto = json_body.into_inner();
 
     dto.validate()?;
@@ -36,6 +38,7 @@ pub async fn stream(
     query_params: web::Query<CapturerGetStreamDto>,
     // req: HttpRequest,
 ) -> Result<HttpResponse, CtrlError> {
+    info!("stream");
     let mut dto = query_params.into_inner();
 
     dto.validate()?;

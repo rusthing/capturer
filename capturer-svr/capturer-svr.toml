@@ -4,3 +4,4 @@ port = 9850
 [capturer]
 stream.session-check-interval-seconds = 5
 stream.session-timeout-seconds = 5
+stream.channel_capacity = 5

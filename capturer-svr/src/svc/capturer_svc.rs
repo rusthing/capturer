@@ -4,6 +4,7 @@ use crate::settings::capturer_settings::OssSettings;
 use crate::settings::settings::SETTINGS;
 use crate::stream::flv_stream::FlvStream;
 use crate::stream::stream_manager::STREAM_MANAGER;
+use futures::Stream;
 use log::debug;
 use oss_api::api::oss_api_utils::OSS_FILE_API;
 use robotech::ro::Ro;
@@ -45,15 +46,17 @@ impl CapturerSvc {
         })
     }
 
-    pub async fn stream(dto: CapturerGetStreamDto) -> Result<FlvStream, SvcError> {
+    pub async fn stream(dto: CapturerGetStreamDto) -> Result<impl Stream<Item = Result<bytes::Bytes, SvcError>>, SvcError> {
         let (data_receiver, header, cache_header_sender) = STREAM_MANAGER
             .get_data_receiver(dto.stream_url.unwrap().as_str())
             .await
             .map_err(|e| RuntimeXError("获取流异常".to_string(), Box::new(e)))?;
-        Ok(FlvStream::new(
+        let flv_stream = FlvStream::new(
             data_receiver,
             Arc::clone(&header),
             cache_header_sender,
-        ))
+        );
+        
+        Ok(flv_stream.into_stream())
     }
 }

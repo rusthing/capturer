@@ -28,6 +28,7 @@ utoipa = { workspace = true, features = ["actix_extras"] }
 utoipa-swagger-ui = { workspace = true, features = ["actix-web"] }
 bytes = { workspace = true }
 futures = { workspace = true }
+async-stream = { workspace = true }
 wheel-rs = { workspace = true }
 robotech = { workspace = true, features = ["web", "api"] }
 oss-api = { workspace = true }

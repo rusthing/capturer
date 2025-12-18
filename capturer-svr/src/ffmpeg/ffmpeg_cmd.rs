@@ -216,7 +216,7 @@ impl FfmpegCmd {
             Some(AudioCodecType::AAC) => {
                 ffmpeg_args.extend_from_slice(&[
                     "-c:a", // 音频编解码器设置参数
-                    "copy", // 音频转为 aac (flv 需要)
+                    "copy", // 直通，不转码
                 ]);
             }
             Some(AudioCodecType::MP3) => {
@@ -225,7 +225,7 @@ impl FfmpegCmd {
                 {
                     ffmpeg_args.extend_from_slice(&[
                         "-c:a", // 音频编解码器设置参数
-                        "copy", // 音频转为 aac (flv 需要)
+                        "copy", // 直通，不转码
                     ]);
                 } else {
                     ffmpeg_args.extend_from_slice(&[

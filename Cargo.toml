@@ -22,12 +22,14 @@ rustc-hash = "2.1.1"
 bytes = "1.11.0"
 futures = "0.3.31"
 async-stream = "0.3.6"
+# cross打包时用，需要开启vendored feature
+openssl = { version = "0.10.75" }
 wheel-rs = "1.0.0"
-robotech = "1.0.0"
-oss-api = "1.0.0"
+robotech = "1.0.1"
+oss-api = "1.0.1"
 
 
 [patch.crates-io]
 wheel-rs = { path = "../wheel-rs" }
 robotech = { path = "../robotech-rs" }
-oss-api = { path = "../oss-rs/oss-api" }
+#oss-api = { path = "../oss-rs/oss-api" }

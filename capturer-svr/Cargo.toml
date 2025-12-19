@@ -10,7 +10,7 @@ categories = []
 repository = "https://github.com/rusthing/capturer"
 homepage = "https://github.com/rusthing/capturer"
 documentation = "https://github.com/rusthing/capturer/blob/master/README.adoc"
-readme = "README.adoc"
+readme = "README.md"
 
 [dependencies]
 log = { workspace = true }
@@ -29,6 +29,8 @@ utoipa-swagger-ui = { workspace = true, features = ["actix-web"] }
 bytes = { workspace = true }
 futures = { workspace = true }
 async-stream = { workspace = true }
+# cross打包时用，需要开启vendored feature
+openssl = { workspace = true, features = ["vendored"] }
 wheel-rs = { workspace = true }
 robotech = { workspace = true, features = ["web", "api"] }
 oss-api = { workspace = true }

@@ -15,7 +15,7 @@ pub struct StreamSettings {
     /// 读取缓冲区大小
     #[serde()]
     pub read_buffer_size: Option<usize>,
-    /// 通道容量(默认100)
+    /// 通道容量(最大消息数量，默认500，如果是25帧/秒，那么最多可以缓存20秒的视频数据)
     #[serde(default = "channel_capacity_default")]
     pub channel_capacity: usize,
     /// 进程检查间隔(单位为秒，默认60)
@@ -82,5 +82,5 @@ fn session_timeout_seconds_default() -> u64 {
 }
 
 fn channel_capacity_default() -> usize {
-    100
+    500
 }

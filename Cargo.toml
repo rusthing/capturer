@@ -23,8 +23,8 @@ bytes = "1.11.0"
 futures = "0.3.31"
 async-stream = "0.3.6"
 wheel-rs = "1.0.0"
-robotech = "0.13.3"
-oss-api = "0.3.2"
+robotech = "1.0.0"
+oss-api = "1.0.0"
 
 
 [patch.crates-io]

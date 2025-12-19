@@ -1718,7 +1718,7 @@ dependencies = [
 
 [[package]]
 name = "oss-api"
-version = "0.3.2"
+version = "1.0.0"
 dependencies = [
  "log",
  "reqwest",
@@ -2048,7 +2048,7 @@ dependencies = [
 
 [[package]]
 name = "robotech"
-version = "0.13.3"
+version = "1.0.0"
 dependencies = [
  "actix-web",
  "chrono",

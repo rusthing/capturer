@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
+use wheel_rs::serde::duration_option_serde;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
@@ -21,19 +23,25 @@ pub struct CmdSettings {
     #[serde(default = "channel_capacity_default")]
     pub channel_capacity: usize,
     /// 命令接收者数量检查间隔(单位为秒，默认30)
-    #[serde(default = "receiver_count_check_interval_seconds_default")]
-    pub receiver_count_check_interval_seconds: u64,
+    #[serde(
+        with = "duration_option_serde",
+        default = "receiver_count_check_interval_default"
+    )]
+    pub receiver_count_check_interval: Option<Duration>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub struct SessionSettings {
     /// 会话超时检查间隔(单位为秒，默认60)
-    #[serde(default = "timeout_check_interval_seconds_default")]
-    pub timeout_check_interval_seconds: u64,
+    #[serde(
+        with = "duration_option_serde",
+        default = "timeout_check_interval_default"
+    )]
+    pub timeout_check_interval: Option<Duration>,
     /// 会话超时时间(单位为秒，默认30*60)
-    #[serde(default = "timeout_seconds_default")]
-    pub timeout_seconds: u64,
+    #[serde(default = "timeout_period_default")]
+    pub timeout_period: Option<Duration>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -62,20 +70,20 @@ impl Default for CmdSettings {
         CmdSettings {
             read_buffer_size: read_buffer_size_default(),
             channel_capacity: channel_capacity_default(),
-            receiver_count_check_interval_seconds: receiver_count_check_interval_seconds_default(),
+            receiver_count_check_interval: receiver_count_check_interval_default(),
         }
     }
 }
 
-fn receiver_count_check_interval_seconds_default() -> u64 {
-    5
+fn receiver_count_check_interval_default() -> Option<Duration> {
+    Some(Duration::from_secs(5))
 }
 
 impl Default for SessionSettings {
     fn default() -> Self {
         SessionSettings {
-            timeout_check_interval_seconds: timeout_check_interval_seconds_default(),
-            timeout_seconds: timeout_seconds_default(),
+            timeout_check_interval: timeout_check_interval_default(),
+            timeout_period: timeout_period_default(),
         }
     }
 }
@@ -96,12 +104,12 @@ fn bucket_default() -> String {
 fn jpeg_quality_default() -> u8 {
     1
 }
-fn timeout_check_interval_seconds_default() -> u64 {
-    60
+fn timeout_check_interval_default() -> Option<Duration> {
+    Some(Duration::from_secs(60))
 }
 
-fn timeout_seconds_default() -> u64 {
-    30 * 60
+fn timeout_period_default() -> Option<Duration> {
+    Some(Duration::from_secs(30 * 60))
 }
 
 fn channel_capacity_default() -> usize {

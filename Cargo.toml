@@ -32,4 +32,4 @@ oss-api = "1.1.0"
 [patch.crates-io]
 wheel-rs = { path = "../wheel-rs" }
 robotech = { path = "../robotech-rs" }
-oss-api = { path = "../oss-rs/oss-api" }
+#oss-api = { path = "../oss-rs/oss-api" }

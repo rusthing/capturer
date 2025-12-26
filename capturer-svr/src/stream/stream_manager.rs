@@ -4,13 +4,14 @@ use crate::ffmpeg::ffmpeg_session::FfmpegSession;
 use crate::settings::capturer_settings::{CmdSettings, SessionSettings};
 use crate::settings::settings::SETTINGS;
 use bytes::Bytes;
-use chrono::{Duration, Utc};
+use chrono::Utc;
 use log::{debug, error, info, trace, warn};
 use rustc_hash::FxHashMap;
 use std::sync::{Arc, LazyLock, OnceLock, RwLock};
+use std::time::Duration;
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::{broadcast, oneshot};
-use tokio::time::{interval, Duration as TokioDuration};
+use tokio::time::interval;
 
 /// 全局静态的流管理器实例
 pub static STREAM_MANAGER: LazyLock<StreamManager> = LazyLock::new(|| StreamManager::new());
@@ -39,10 +40,13 @@ impl StreamManager {
             ..
         } = SETTINGS.get().expect("无法获取设置").capturer.cmd;
         let SessionSettings {
-            timeout_check_interval_seconds: session_check_interval_seconds,
-            timeout_seconds: session_timeout_seconds,
+            timeout_check_interval: Some(session_timeout_check_interval),
+            timeout_period: Some(session_timeout_period),
             ..
-        } = SETTINGS.get().expect("无法获取设置").capturer.session;
+        } = SETTINGS.get().expect("无法获取设置").capturer.session
+        else {
+            unreachable!("会话超时检查间隔和超时时间必须配置");
+        };
 
         // 创建会话容器
         let sessions: Arc<RwLock<FxHashMap<String, FfmpegSession>>> =
@@ -51,13 +55,13 @@ impl StreamManager {
         debug!("<定时清除过期会话>任务正在创建....");
         let sessions_clone = Arc::clone(&sessions);
         tokio::spawn(async move {
-            let mut interval = interval(TokioDuration::from_secs(session_check_interval_seconds));
+            let mut interval = interval(session_timeout_check_interval);
             info!(
-                "<定时清除过期会话>任务创建完成. 定时检查间隔: {session_check_interval_seconds}秒"
+                "<定时清除过期会话>任务创建完成. 定时检查间隔: {session_timeout_check_interval:?}"
             );
             loop {
                 interval.tick().await;
-                Self::cleanup_expired_sessions(sessions_clone.clone(), session_timeout_seconds)
+                Self::cleanup_expired_sessions(sessions_clone.clone(), session_timeout_period)
                     .await;
             }
         });
@@ -100,12 +104,13 @@ impl StreamManager {
         FfmpegError,
     > {
         info!("获取命令接收者: {}", url);
-        let cmd_receiver_count_check_interval_seconds = SETTINGS
+        let cmd_receiver_count_check_interval = SETTINGS
             .get()
             .expect("无法获取设置")
             .capturer
             .cmd
-            .receiver_count_check_interval_seconds;
+            .receiver_count_check_interval
+            .unwrap();
 
         let sessions = &self.sessions;
         {
@@ -185,11 +190,9 @@ impl StreamManager {
         info!("<监听子进程{child_id}接收者数量>任务正在创建....");
         let session_clone = Arc::new(session);
         tokio::spawn(async move {
-            let mut interval = interval(TokioDuration::from_secs(
-                cmd_receiver_count_check_interval_seconds,
-            ));
+            let mut interval = interval(cmd_receiver_count_check_interval);
             info!(
-                "<监听子进程{child_id}接收者数量>任务创建完成. 定时检查间隔: {cmd_receiver_count_check_interval_seconds}秒"
+                "<监听子进程{child_id}接收者数量>任务创建完成. 定时检查间隔: {cmd_receiver_count_check_interval:?}"
             );
             loop {
                 interval.tick().await;
@@ -302,7 +305,7 @@ impl StreamManager {
     /// * `timeout_seconds`: 会话超时时间（秒）
     async fn cleanup_expired_sessions(
         sessions: Arc<RwLock<FxHashMap<String, FfmpegSession>>>,
-        timeout_seconds: u64,
+        timeout_period: Duration,
     ) {
         info!("开始执行<清理过期会话>任务....");
         let mut expired_keys = Vec::new();
@@ -315,8 +318,7 @@ impl StreamManager {
                 if let Ok(last_access_datetime_read_lock) = session.last_access_datetime.read() {
                     debug!("检查会话{key}是否过期....");
                     if let Some(last_access_datetime) = *last_access_datetime_read_lock {
-                        let cut_off_datetime =
-                            last_access_datetime + Duration::seconds(timeout_seconds as i64);
+                        let cut_off_datetime = last_access_datetime + timeout_period;
                         debug!(
                             "会话{key}最后访问时间: {last_access_datetime}, 过期时间: {cut_off_datetime}"
                         );

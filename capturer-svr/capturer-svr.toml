@@ -2,8 +2,8 @@
 port = 9850
 
 [capturer]
-session.check-interval-seconds = 5
-session.timeout-seconds = 5
+session.timeout-check-interval = "5s"
+session.timeout-period = "5s"
 cmd.channel_capacity = 5
 
 [api]

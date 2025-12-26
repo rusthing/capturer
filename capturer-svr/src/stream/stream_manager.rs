@@ -1,11 +1,11 @@
 use crate::ffmpeg::ffmpeg_cmd::FfmpegCmd;
 use crate::ffmpeg::ffmpeg_error::FfmpegError;
 use crate::ffmpeg::ffmpeg_session::FfmpegSession;
-use crate::settings::capturer_settings::StreamSettings;
+use crate::settings::capturer_settings::{CmdSettings, SessionSettings};
 use crate::settings::settings::SETTINGS;
 use bytes::Bytes;
 use chrono::{Duration, Utc};
-use log::{debug, error, info, warn};
+use log::{debug, error, info, trace, warn};
 use rustc_hash::FxHashMap;
 use std::sync::{Arc, LazyLock, OnceLock, RwLock};
 use tokio::sync::broadcast::Receiver;
@@ -20,10 +20,10 @@ pub static STREAM_MANAGER: LazyLock<StreamManager> = LazyLock::new(|| StreamMana
 /// 该管理器维护一个会话映射表，用于存储和管理所有活动的流会话。
 /// 它还负责定期清理过期的会话，并处理会话生命周期相关事件。
 pub struct StreamManager {
-    /// 广播通道容量
-    channel_capacity: usize,
-    /// 读取缓冲区大小
-    read_buffer_size: Option<usize>,
+    /// 命令读取缓冲区大小
+    cmd_read_buffer_size: usize,
+    /// 命令广播通道容量
+    cmd_channel_capacity: usize,
     /// 会话存储映射表，使用URL作为键，FfmpegSession作为值
     sessions: Arc<RwLock<FxHashMap<String, FfmpegSession>>>,
 }
@@ -33,26 +33,25 @@ impl StreamManager {
     ///
     /// 该函数会从配置中读取相关设置，并启动后台任务来定期清理过期会话。
     pub fn new() -> Self {
-        let StreamSettings {
-            channel_capacity,
-            session_check_interval_seconds,
-            session_timeout_seconds,
-            read_buffer_size,
+        let CmdSettings {
+            read_buffer_size: cmd_read_buffer_size,
+            channel_capacity: cmd_channel_capacity,
             ..
-        } = SETTINGS
-            .get()
-            .expect("无法获取stream的设置")
-            .capturer
-            .stream;
+        } = SETTINGS.get().expect("无法获取设置").capturer.cmd;
+        let SessionSettings {
+            timeout_check_interval_seconds: session_check_interval_seconds,
+            timeout_seconds: session_timeout_seconds,
+            ..
+        } = SETTINGS.get().expect("无法获取设置").capturer.session;
 
         // 创建会话容器
         let sessions: Arc<RwLock<FxHashMap<String, FfmpegSession>>> =
             Arc::new(RwLock::new(FxHashMap::default()));
 
         debug!("<定时清除过期会话>任务正在创建....");
-        let mut interval = interval(TokioDuration::from_secs(session_check_interval_seconds));
         let sessions_clone = Arc::clone(&sessions);
         tokio::spawn(async move {
+            let mut interval = interval(TokioDuration::from_secs(session_check_interval_seconds));
             info!(
                 "<定时清除过期会话>任务创建完成. 定时检查间隔: {session_check_interval_seconds}秒"
             );
@@ -64,16 +63,16 @@ impl StreamManager {
         });
 
         Self {
-            channel_capacity,
-            read_buffer_size,
+            cmd_read_buffer_size,
+            cmd_channel_capacity,
             sessions,
         }
     }
 
-    /// 获取指定URL的数据接收器
+    /// 获取指定URL的命令接收者
     ///
-    /// 如果该URL对应的会话已存在，则返回现有会话的数据接收器；
-    /// 否则创建一个新的ffmpeg会话并返回其数据接收器。
+    /// 如果该URL对应的会话已存在，则返回现有会话的命令接收者；
+    /// 否则创建一个新的ffmpeg会话并返回其命令接收者。
     ///
     /// # 参数
     ///
@@ -82,14 +81,14 @@ impl StreamManager {
     /// # 返回值
     ///
     /// 返回一个包含以下元素的元组：
-    /// * `Receiver<Bytes>`: 数据接收器
+    /// * `Receiver<Bytes>`: 命令接收者
     /// * `Arc<OnceLock<Bytes>>`: 视频头部信息缓存
     /// * `Option<oneshot::Sender<Bytes>>`: 缓存头部信息发送器（仅新会话有）
     ///
     /// # 错误处理
     ///
     /// 如果无法获取锁或ffmpeg命令执行失败，将返回相应的错误。
-    pub async fn get_data_receiver(
+    pub async fn get_cmd_receiver(
         &self,
         url: &str,
     ) -> Result<
@@ -100,7 +99,14 @@ impl StreamManager {
         ),
         FfmpegError,
     > {
-        info!("获取数据接收器: {}", url);
+        info!("获取命令接收者: {}", url);
+        let cmd_receiver_count_check_interval_seconds = SETTINGS
+            .get()
+            .expect("无法获取设置")
+            .capturer
+            .cmd
+            .receiver_count_check_interval_seconds;
+
         let sessions = &self.sessions;
         {
             debug!("获取会话读锁...");
@@ -124,7 +130,7 @@ impl StreamManager {
                     *last_access_datetime_write_lock = None;
                 }
 
-                debug!("返回数据接收器...");
+                debug!("返回命令接收者...");
                 return Ok((
                     session.data_sender.subscribe(),
                     Arc::clone(&session.header),
@@ -134,7 +140,7 @@ impl StreamManager {
         }
 
         debug!("创建新会话...");
-        let (data_sender, data_receiver) = broadcast::channel(self.channel_capacity);
+        let (data_sender, data_receiver) = broadcast::channel(self.cmd_channel_capacity);
         let (process_exit_sender, process_exit_receiver) = oneshot::channel();
         let (cache_header_sender, cache_header_receiver) = oneshot::channel();
         let last_access_datetime = Arc::new(RwLock::new(None));
@@ -145,7 +151,7 @@ impl StreamManager {
                 url,
                 data_sender.clone(),
                 process_exit_sender,
-                self.read_buffer_size,
+                self.cmd_read_buffer_size,
             )
             .await?,
         );
@@ -175,17 +181,21 @@ impl StreamManager {
         }
         info!("<子进程{child_id}>会话创建完成.");
 
-        // 启动监听数据订阅者数量的任务
-        info!("<监听子进程{child_id}数据订阅者数量>任务正在创建....");
-        let mut interval = interval(TokioDuration::from_secs(5));
+        // 启动监听接收者数量的任务
+        info!("<监听子进程{child_id}接收者数量>任务正在创建....");
         let session_clone = Arc::new(session);
         tokio::spawn(async move {
-            info!("<监听子进程{child_id}数据订阅者数量>任务创建完成. 定时检查间隔: 5秒");
+            let mut interval = interval(TokioDuration::from_secs(
+                cmd_receiver_count_check_interval_seconds,
+            ));
+            info!(
+                "<监听子进程{child_id}接收者数量>任务创建完成. 定时检查间隔: {cmd_receiver_count_check_interval_seconds}秒"
+            );
             loop {
                 interval.tick().await;
 
                 if data_sender.receiver_count() == 0 {
-                    debug!("获取 last_access_datetime 读锁...");
+                    trace!("获取 last_access_datetime 读锁...");
                     let last_access_datetime = if let Ok(last_access_datetime_read_lock) =
                         session_clone.last_access_datetime.read()
                     {
@@ -195,8 +205,8 @@ impl StreamManager {
                         continue;
                     };
                     if last_access_datetime.is_none() {
-                        debug!("子进程{child_id}数据订阅者数量==0，记录会话过期时间");
-                        debug!("获取 last_access_datetime 写锁...");
+                        info!("子进程{child_id}接收者数量==0，记录会话过期时间");
+                        trace!("获取 last_access_datetime 写锁...");
                         if let Ok(mut last_access_datetime_write_lock) =
                             session_clone.last_access_datetime.write()
                         {

@@ -2,6 +2,9 @@
 port = 9850
 
 [capturer]
-stream.session-check-interval-seconds = 5
-stream.session-timeout-seconds = 5
-stream.channel_capacity = 5
+session.check-interval-seconds = 5
+session.timeout-seconds = 5
+cmd.channel_capacity = 5
+
+[api]
+oss.base-url = "http://ossrs:9840"

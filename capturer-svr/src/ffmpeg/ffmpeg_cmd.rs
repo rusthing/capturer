@@ -162,7 +162,7 @@ impl FfmpegCmd {
         stream_url: &str,
         data_sender: Sender<Bytes>,
         process_exit_sender: oneshot::Sender<()>,
-        read_buffer_size: Option<usize>,
+        read_buffer_size: usize,
     ) -> Result<Child, FfmpegError> {
         info!("pull_and_transcode_stream {stream_url}....");
         // 先探测流信息

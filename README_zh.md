@@ -39,6 +39,7 @@ docker build -t capturer-svr .
 服务可以通过 TOML 配置文件进行配置。默认情况下，会在工作目录中查找 `capturer-svr.toml` 文件。
 
 配置示例：
+
 ```toml
 [web-server]
 port = 9850
@@ -58,6 +59,7 @@ stream.channel_capacity = 5
 ```
 
 选项：
+
 - `-c, --config-file <CONFIG_FILE>`: 配置文件路径
 - `-p, --port <PORT>`: Web 服务端口号
 
@@ -76,6 +78,7 @@ POST /capturer/capture_to_jpeg
 ```
 
 请求体：
+
 ```json
 {
   "streamUrl": "rtsp://example.com/stream"
@@ -86,6 +89,18 @@ POST /capturer/capture_to_jpeg
 
 ```
 GET /capturer/stream.live.flv?streamUrl=rtsp://example.com/stream
+```
+
+## Docker 镜像
+
+### 地址
+
+[Docker Hub](https://hub.docker.com/nnzbz/capturer)
+
+### 制作并发布镜像
+
+```bash
+docker buildx build --platform linux/arm64,linux/amd64 -t nnzbz/capturer:1.0.0 . --push
 ```
 
 ## 项目结构

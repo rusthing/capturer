@@ -49,7 +49,7 @@ impl CapturerSvc {
     pub async fn stream(dto: CapturerGetStreamDto) -> Result<impl Stream<Item = Result<bytes::Bytes, SvcError>>, SvcError> {
         debug!("获取stream_manager实例...");
         let (data_receiver, header, cache_header_sender) = STREAM_MANAGER
-            .get_data_receiver(dto.stream_url.unwrap().as_str())
+            .get_cmd_receiver(dto.stream_url.unwrap().as_str())
             .await
             .map_err(|e| RuntimeXError("获取流异常".to_string(), Box::new(e)))?;
         debug!("获取flv_stream实例...");

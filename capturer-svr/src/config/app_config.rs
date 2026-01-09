@@ -1,28 +1,28 @@
-use crate::settings::capturer_settings::CapturerSettings;
+use crate::config::capturer_config::CapturerConfig;
 use log::info;
-use robotech::api::api_settings::ApiSettings;
-use robotech::settings::get_settings;
-use robotech::web_server::WebServerSettings;
+use robotech::api_client::ApiClientConfig;
+use robotech::config::get_config;
+use robotech::web::WebServerConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
 /// 全局配置
-pub static SETTINGS: OnceLock<Settings> = OnceLock::new();
+pub static APP_CONFIG: OnceLock<AppConfig> = OnceLock::new();
 
 /// 配置文件结构
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
-pub struct Settings {
+pub struct AppConfig {
     /// 抓拍机设置置
-    #[serde(default = "CapturerSettings::default")]
-    pub capturer: CapturerSettings,
+    #[serde(default = "CapturerConfig::default")]
+    pub capturer: CapturerConfig,
     /// Web服务器设置
-    #[serde(default = "WebServerSettings::default")]
-    pub web_server: WebServerSettings,
-    /// API设置
+    #[serde(default = "WebServerConfig::default")]
+    pub web_server: WebServerConfig,
+    /// API客户端设置
     #[serde(default = "HashMap::default")]
-    pub api: HashMap<String, ApiSettings>,
+    pub api_client: HashMap<String, ApiClientConfig>,
 }
 
 /// # 创建新的配置实例
@@ -36,18 +36,18 @@ pub struct Settings {
 /// * `port` - 可选的端口号，如果提供将覆盖配置文件中的端口设置
 ///
 /// ## 返回值
-/// 返回解析后的Settings实例
+/// 返回解析后的AppConfig实例
 ///
 /// ## Panics
 /// 当配置文件读取失败或解析失败时会触发panic
-pub fn init_settings(path: Option<String>, port: Option<u16>) {
-    let mut settings = get_settings::<Settings>(path);
+pub fn init_app_config(path: Option<String>, port: Option<u16>) {
+    let mut app_config = get_config::<AppConfig>(path);
 
     info!("检查命令行是否指定了一些参数，如果有，则以命令行指定的参数为准...");
     // 如果命令行指定了端口，则使用命令行指定的端口
     if port.is_some() {
-        settings.web_server.port = port;
+        app_config.web_server.port = port;
     }
 
-    SETTINGS.set(settings).expect("无法设置配置信息");
+    APP_CONFIG.set(app_config).expect("无法设置配置信息");
 }

@@ -112,7 +112,7 @@ capturer/
 │   │   ├── ctrl/           # API 控制器
 │   │   ├── dto/            # 数据传输对象
 │   │   ├── ffmpeg/         # FFmpeg 集成
-│   │   ├── settings/       # 配置处理
+│   │   ├── config/         # 配置处理
 │   │   ├── stream/         # 流媒体功能
 │   │   ├── svc/            # 业务逻辑服务
 │   │   ├── utils/          # 工具函数

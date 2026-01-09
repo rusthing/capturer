@@ -32,8 +32,8 @@ async-stream = { workspace = true }
 # cross打包时用，需要开启vendored feature
 openssl = { workspace = true, features = ["vendored"] }
 wheel-rs = { workspace = true }
-robotech = { workspace = true, features = ["web", "api"] }
-oss-api = { workspace = true }
+robotech = { workspace = true, features = ["web", "api-client"] }
+oss-api-client = { workspace = true }
 
 [dev-dependencies]
 ctor = { workspace = true }

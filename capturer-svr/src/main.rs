@@ -1,12 +1,12 @@
-use capturer_svr::settings::settings::{init_settings, SETTINGS};
+use capturer_svr::config::app_config::{init_app_config, APP_CONFIG};
 // use capturer_svr::utils::ffmpeg_utils::init_ffmpeg;
 use capturer_svr::web_service_config::web_service_config;
 use clap::Parser;
 use log::info;
-use oss_api::api::oss_api_utils::init_oss_api;
+use oss_api_client::api_client::init_oss_api_client;
 use robotech::env::init_env;
 use robotech::log::log::init_log;
-use robotech::web_server::start_web_server;
+use robotech::web::start_web_server;
 
 /// 视频抓拍工具
 ///
@@ -47,18 +47,15 @@ async fn main() {
     let args = Args::parse();
 
     info!("初始化设置选项...");
-    init_settings(args.config_file, args.port);
+    init_app_config(args.config_file, args.port);
 
-    info!("初始化API...");
-    let api_settings = SETTINGS.get().unwrap().api.clone();
-    init_oss_api(api_settings);
-
-    // 初始化ffmpeg
-    // init_ffmpeg().expect("初始化ffmpeg失败");
+    info!("初始化API客户端...");
+    let api_client_config = APP_CONFIG.get().unwrap().api_client.clone();
+    init_oss_api_client(api_client_config);
 
     // 启动Web服务
-    let web_server_settings = SETTINGS.get().unwrap().web_server.clone();
-    start_web_server(web_server_settings, web_service_config).await;
+    let web_server_config = APP_CONFIG.get().unwrap().web_server.clone();
+    start_web_server(web_server_config, web_service_config).await;
 
     info!("退出程序");
 }

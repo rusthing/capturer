@@ -1,8 +1,8 @@
 use crate::ffmpeg::ffmpeg_cmd::FfmpegCmd;
 use crate::ffmpeg::ffmpeg_error::FfmpegError;
 use crate::ffmpeg::ffmpeg_session::FfmpegSession;
-use crate::settings::capturer_settings::{CmdSettings, SessionSettings};
-use crate::settings::settings::SETTINGS;
+use crate::config::capturer_config::{CmdConfig, SessionConfig};
+use crate::config::app_config::APP_CONFIG;
 use bytes::Bytes;
 use chrono::Utc;
 use log::{debug, error, info, trace, warn};
@@ -34,16 +34,16 @@ impl StreamManager {
     ///
     /// 该函数会从配置中读取相关设置，并启动后台任务来定期清理过期会话。
     pub fn new() -> Self {
-        let CmdSettings {
+        let CmdConfig {
             read_buffer_size: cmd_read_buffer_size,
             channel_capacity: cmd_channel_capacity,
             ..
-        } = SETTINGS.get().expect("无法获取设置").capturer.cmd;
-        let SessionSettings {
+        } = APP_CONFIG.get().expect("无法获取设置").capturer.cmd;
+        let SessionConfig {
             timeout_check_interval: Some(session_timeout_check_interval),
             timeout_period: Some(session_timeout_period),
             ..
-        } = SETTINGS.get().expect("无法获取设置").capturer.session
+        } = APP_CONFIG.get().expect("无法获取设置").capturer.session
         else {
             unreachable!("会话超时检查间隔和超时时间必须配置");
         };
@@ -104,7 +104,7 @@ impl StreamManager {
         FfmpegError,
     > {
         info!("获取命令接收者: {}", url);
-        let cmd_receiver_count_check_interval = SETTINGS
+        let cmd_receiver_count_check_interval = APP_CONFIG
             .get()
             .expect("无法获取设置")
             .capturer

@@ -113,7 +113,7 @@ capturer/
 │   │   ├── ctrl/           # Controllers for API endpoints
 │   │   ├── dto/            # Data transfer objects
 │   │   ├── ffmpeg/         # FFmpeg integration
-│   │   ├── settings/       # Configuration handling
+│   │   ├── config/         # Configuration handling
 │   │   ├── stream/         # Streaming functionality
 │   │   ├── svc/            # Business logic services
 │   │   ├── utils/          # Utility functions

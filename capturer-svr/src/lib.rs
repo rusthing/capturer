@@ -2,7 +2,7 @@ pub mod api_doc;
 pub mod ctrl;
 pub mod dto;
 pub mod ffmpeg;
-pub mod settings;
+pub mod config;
 pub mod stream;
 pub mod svc;
 pub mod vo;

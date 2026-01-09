@@ -2,10 +2,10 @@ use crate::dto::capturer_dto::{CapturerCaptureToJpegDto, CapturerGetStreamDto};
 use crate::svc::capturer_svc::CapturerSvc;
 use actix_web::{get, post, web, HttpRequest, HttpResponse, Result};
 use log::info;
-use oss_api::vo::oss_obj_ref::OssObjRefVo;
-use robotech::ctrl::ctrl_error::CtrlError;
-use robotech::ctrl::ctrl_utils::get_current_user_id;
+use oss_api_client::vo::oss_obj_ref::OssObjRefVo;
 use robotech::ro::Ro;
+use robotech::web::ctrl_utils::get_current_user_id;
+use robotech::web::CtrlError;
 use validator::Validate;
 
 #[utoipa::path(
@@ -39,11 +39,11 @@ pub async fn stream(
     // req: HttpRequest,
 ) -> Result<HttpResponse, CtrlError> {
     info!("stream");
-    let mut dto = query_params.into_inner();
+    let dto = query_params.into_inner();
 
     dto.validate()?;
 
-    // 从header中解析当前用户ID，如果没有或解析失败则抛出ApiError
+    // TODO: 从header中解析当前用户ID，如果没有或解析失败则抛出ApiError
     // dto.current_user_id = get_current_user_id(req)?;
 
     Ok(HttpResponse::Ok()

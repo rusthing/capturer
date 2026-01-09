@@ -4,18 +4,18 @@ use wheel_rs::serde::duration_option_serde;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
-pub struct CapturerSettings {
-    #[serde(default = "CmdSettings::default")]
-    pub cmd: CmdSettings,
-    #[serde(default = "SessionSettings::default")]
-    pub session: SessionSettings,
-    #[serde(default = "OssSettings::default")]
-    pub oss: OssSettings,
+pub struct CapturerConfig {
+    #[serde(default = "CmdConfig::default")]
+    pub cmd: CmdConfig,
+    #[serde(default = "SessionConfig::default")]
+    pub session: SessionConfig,
+    #[serde(default = "OssConfig::default")]
+    pub oss: OssConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
-pub struct CmdSettings {
+pub struct CmdConfig {
     /// 命令读取缓冲区大小
     #[serde(default = "read_buffer_size_default")]
     pub read_buffer_size: usize,
@@ -32,7 +32,7 @@ pub struct CmdSettings {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
-pub struct SessionSettings {
+pub struct SessionConfig {
     /// 会话超时检查间隔(单位为秒，默认60)
     #[serde(
         with = "duration_option_serde",
@@ -40,13 +40,13 @@ pub struct SessionSettings {
     )]
     pub timeout_check_interval: Option<Duration>,
     /// 会话超时时间(单位为秒，默认30*60)
-    #[serde(default = "timeout_period_default")]
+    #[serde(with = "duration_option_serde", default = "timeout_period_default")]
     pub timeout_period: Option<Duration>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
-pub struct OssSettings {
+pub struct OssConfig {
     /// 存储桶
     #[serde(default = "bucket_default")]
     pub bucket: String,
@@ -55,19 +55,19 @@ pub struct OssSettings {
     pub jpeg_quality: u8,
 }
 
-impl Default for CapturerSettings {
+impl Default for CapturerConfig {
     fn default() -> Self {
-        CapturerSettings {
-            cmd: CmdSettings::default(),
-            session: SessionSettings::default(),
-            oss: OssSettings::default(),
+        CapturerConfig {
+            cmd: CmdConfig::default(),
+            session: SessionConfig::default(),
+            oss: OssConfig::default(),
         }
     }
 }
 
-impl Default for CmdSettings {
+impl Default for CmdConfig {
     fn default() -> Self {
-        CmdSettings {
+        CmdConfig {
             read_buffer_size: read_buffer_size_default(),
             channel_capacity: channel_capacity_default(),
             receiver_count_check_interval: receiver_count_check_interval_default(),
@@ -79,18 +79,18 @@ fn receiver_count_check_interval_default() -> Option<Duration> {
     Some(Duration::from_secs(5))
 }
 
-impl Default for SessionSettings {
+impl Default for SessionConfig {
     fn default() -> Self {
-        SessionSettings {
+        SessionConfig {
             timeout_check_interval: timeout_check_interval_default(),
             timeout_period: timeout_period_default(),
         }
     }
 }
 
-impl Default for OssSettings {
+impl Default for OssConfig {
     fn default() -> Self {
-        OssSettings {
+        OssConfig {
             bucket: bucket_default(),
             jpeg_quality: jpeg_quality_default(),
         }

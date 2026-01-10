@@ -2,7 +2,7 @@
 #[ctor::ctor]
 fn init_tests() {
     robotech::env::init_env();
-    robotech::log::log::init_log().unwrap();
+    robotech::log::init_log();
 }
 
 #[cfg(test)]

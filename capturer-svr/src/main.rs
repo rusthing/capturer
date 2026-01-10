@@ -5,7 +5,7 @@ use clap::Parser;
 use log::info;
 use oss_api_client::api_client::init_oss_api_client;
 use robotech::env::init_env;
-use robotech::log::log::init_log;
+use robotech::log::init_log;
 use robotech::web::start_web_server;
 
 /// 视频抓拍工具

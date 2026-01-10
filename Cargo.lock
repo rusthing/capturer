@@ -1821,6 +1821,8 @@ dependencies = [
 [[package]]
 name = "oss-api-client"
 version = "1.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf9219e541d9be7bf7ef169139b6bd09da523165911197dfbf401c0a8bfd22ff"
 dependencies = [
  "log",
  "reqwest",

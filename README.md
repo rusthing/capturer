@@ -1,128 +1,143 @@
-# Capturer Service
+# Capturer Server
 
-[中文版本](README_zh.md)
-
-Capturer Service is a video capturing tool developed in Rust that can capture frames from video streams and return them as images. It supports RTSP
-stream capture and conversion to JPEG format.
+A Rust-based video capturing service that captures images from video streams, supporting RTSP and other video formats.
 
 ## Features
 
-- Capture single frames from RTSP video streams
-- Convert captured frames to JPEG format
-- Stream FLV video content
+- Capture images from video streams
+- Support for various video formats (RTSP, MP4, etc.)
 - RESTful API for easy integration
-- Docker support for easy deployment
-- Configuration via TOML files
+- FFmpeg-based video processing
+- FLV streaming support
+- Configurable server settings
+- Object Storage Service (OSS) integration
 
 ## Prerequisites
 
-- Rust toolchain
+- Rust 1.84+ (edition 2024)
 - FFmpeg installed on the system
-- Access to RTSP video streams (for testing)
+- OpenSSL for secure connections
 
-## Building
+## Installation
 
-### Using Cargo
+### Clone the repository
 
 ```bash
-cd capturer-svr
+git clone https://github.com/rusthing/capturer.git
+cd capturer
+```
+
+### Build the project
+
+```bash
 cargo build --release
 ```
 
 ### Using Docker
 
+The project includes a Dockerfile for containerized deployment:
+
 ```bash
-docker build -t capturer-svr .
+# Build the Docker image
+docker build -t rusthing/capturer .
+
+# Run the container
+docker run -d -p 8080:8080 rusthing/capturer
 ```
 
 ## Configuration
 
-The service can be configured using a TOML configuration file. By default, it looks for `capturer-svr.toml` in the working directory.
+The application uses a configuration file named `capturer-svr.toml`. You can specify a custom configuration file path using the `--config-file` command-line option.
 
 Example configuration:
 
 ```toml
-[web-server]
-port = 9850
+[web_server]
+port = 8080
+host = "0.0.0.0"
 
-[capturer]
-stream.session-check-interval-seconds = 5
-stream.session-timeout-seconds = 5
-stream.channel_capacity = 5
+[api_client]
+# API client configuration for OSS integration
 ```
 
-## Running
+## Usage
 
-### Direct execution
+### Command Line Options
 
 ```bash
-./target/release/capturer-svr [OPTIONS]
+./capturer-svr --help
 ```
 
-Options:
+Available options:
+- `-c, --config-file`: Path to the configuration file
+- `-p, --port`: Web server port number
+- `-V, --version`: Show version information
 
-- `-c, --config-file <CONFIG_FILE>`: Path to the configuration file
-- `-p, --port <PORT>`: Web server port number
-
-### Using Docker
+### Running the Server
 
 ```bash
-docker run -p 9850:9850 capturer-svr
+# With default settings
+./capturer-svr
+
+# With custom port
+./capturer-svr --port 8080
+
+# With custom configuration file
+./capturer-svr --config-file /path/to/config.toml
 ```
 
-## API Endpoints
+## API Documentation
 
-### Capture to JPEG
+The service provides Swagger UI documentation available at `/swagger-ui/` endpoint when running.
 
-```
-POST /capturer/capture_to_jpeg
-```
+## Architecture
 
-Request Body:
+The project is organized in the following modules:
 
-```json
-{
-  "streamUrl": "rtsp://example.com/stream"
-}
-```
+- `api_doc`: API documentation configuration
+- `config`: Application configuration management
+- `ctrl`: Controllers for handling HTTP requests
+- `dto`: Data transfer objects
+- `ffmpeg`: Video processing with FFmpeg
+- `stream`: Stream management (FLV streaming)
+- `svc`: Business logic services
+- `vo`: Value objects
 
-### Stream FLV
+## FFmpeg Integration
 
-```
-GET /capturer/stream.live.flv?streamUrl=rtsp://example.com/stream
-```
+The application leverages FFmpeg for video processing and image extraction. It includes:
 
-## Docker Image
+- Video stream capture
+- Image extraction from video frames
+- Format conversion capabilities
+- Session management for concurrent operations
 
-### address
+## Testing
 
-[Docker Hub](https://hub.docker.com/nnzbz/capturer)
-
-### build and publish image
+Run the project tests:
 
 ```bash
-docker buildx build --platform linux/arm64,linux/amd64 -t nnzbz/capturer:1.0.0 . --push
+cargo test
 ```
 
-## Project Structure
+Some tests may require specific test files located in the `tests/static/` directory.
 
-```
-capturer/
-├── capturer-svr/           # Main service implementation
-│   ├── src/                # Source code
-│   │   ├── ctrl/           # Controllers for API endpoints
-│   │   ├── dto/            # Data transfer objects
-│   │   ├── ffmpeg/         # FFmpeg integration
-│   │   ├── config/         # Configuration handling
-│   │   ├── stream/         # Streaming functionality
-│   │   ├── svc/            # Business logic services
-│   │   ├── utils/          # Utility functions
-│   │   └── vo/             # Value objects
-│   ├── tests/              # Integration tests
-│   └── capturer-svr.toml   # Default configuration
-└── Dockerfile              # Docker build configuration
-```
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run the tests (`cargo test`)
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- Built with [Actix Web](https://actix.rs/) - A powerful, pragmatic, and extremely fast web framework for Rust
+- Uses [FFmpeg](https://ffmpeg.org/) for video processing
+- Documentation powered by [Utoipa](https://github.com/juhaku/utoipa) for OpenAPI generation

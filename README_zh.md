@@ -1,127 +1,143 @@
-# 视频抓拍服务
+# Capturer Server
 
-[English Version](README.md)
-
-视频抓拍服务是一个使用 Rust 开发的视频抓拍工具，可以从视频流中抓拍帧并以图片形式返回。支持 RTSP 流抓拍和转换为 JPEG 格式。
+基于 Rust 的视频抓拍服务，可以从视频流中抓取图像，支持 RTSP 和其他视频格式。
 
 ## 功能特性
 
-- 从 RTSP 视频流中抓拍单帧
-- 将抓拍的帧转换为 JPEG 格式
-- 支持 FLV 视频流传输
-- 提供 RESTful API 便于集成
-- 支持 Docker 部署
-- 支持通过 TOML 文件配置
+- 从视频流中抓取图像
+- 支持多种视频格式（RTSP、MP4 等）
+- RESTful API，便于集成
+- 基于 FFmpeg 的视频处理
+- FLV 流媒体支持
+- 可配置的服务器设置
+- 对象存储服务（OSS）集成
 
 ## 环境要求
 
-- Rust 工具链
-- 系统中安装 FFmpeg
-- 可访问的 RTSP 视频流（用于测试）
+- Rust 1.84+（2024 版）
+- 系统已安装 FFmpeg
+- OpenSSL 用于安全连接
 
-## 构建
+## 安装
 
-### 使用 Cargo 构建
+### 克隆仓库
 
 ```bash
-cd capturer-svr
+git clone https://github.com/rusthing/capturer.git
+cd capturer
+```
+
+### 构建项目
+
+```bash
 cargo build --release
 ```
 
-### 使用 Docker 构建
+### 使用 Docker
+
+项目包含用于容器化部署的 Dockerfile：
 
 ```bash
-docker build -t capturer-svr .
+# 构建 Docker 镜像
+docker build -t rusthing/capturer .
+
+# 运行容器
+docker run -d -p 8080:8080 rusthing/capturer
 ```
 
 ## 配置
 
-服务可以通过 TOML 配置文件进行配置。默认情况下，会在工作目录中查找 `capturer-svr.toml` 文件。
+应用程序使用名为 `capturer-svr.toml` 的配置文件。您可以使用 `--config-file` 命令行选项指定自定义配置文件路径。
 
-配置示例：
+示例配置：
 
 ```toml
-[web-server]
-port = 9850
+[web_server]
+port = 8080
+host = "0.0.0.0"
 
-[capturer]
-stream.session-check-interval-seconds = 5
-stream.session-timeout-seconds = 5
-stream.channel_capacity = 5
+[api_client]
+# OSS 集成的 API 客户端配置
 ```
 
-## 运行
+## 使用方法
 
-### 直接运行
+### 命令行选项
 
 ```bash
-./target/release/capturer-svr [OPTIONS]
+./capturer-svr --help
 ```
 
-选项：
+可用选项：
+- `-c, --config-file`: 配置文件路径
+- `-p, --port`: Web 服务器端口号
+- `-V, --version`: 显示版本信息
 
-- `-c, --config-file <CONFIG_FILE>`: 配置文件路径
-- `-p, --port <PORT>`: Web 服务端口号
-
-### 使用 Docker 运行
+### 运行服务器
 
 ```bash
-docker run -p 9850:9850 capturer-svr
+# 使用默认设置
+./capturer-svr
+
+# 使用自定义端口
+./capturer-svr --port 8080
+
+# 使用自定义配置文件
+./capturer-svr --config-file /path/to/config.toml
 ```
 
-## API 接口
+## API 文档
 
-### 抓拍为 JPEG
+服务提供 Swagger UI 文档，在运行时可通过 `/swagger-ui/` 端点访问。
 
-```
-POST /capturer/capture_to_jpeg
-```
+## 架构
 
-请求体：
+项目组织为以下模块：
 
-```json
-{
-  "streamUrl": "rtsp://example.com/stream"
-}
-```
+- `api_doc`: API 文档配置
+- `config`: 应用配置管理
+- `ctrl`: 控制器，用于处理 HTTP 请求
+- `dto`: 数据传输对象
+- `ffmpeg`: 使用 FFmpeg 进行视频处理
+- `stream`: 流管理（FLV 流）
+- `svc`: 业务逻辑服务
+- `vo`: 值对象
 
-### FLV 流传输
+## FFmpeg 集成
 
-```
-GET /capturer/stream.live.flv?streamUrl=rtsp://example.com/stream
-```
+应用程序利用 FFmpeg 进行视频处理和图像提取。包括：
 
-## Docker 镜像
+- 视频流抓取
+- 从视频帧中提取图像
+- 格式转换功能
+- 并发操作的会话管理
 
-### 地址
+## 测试
 
-[Docker Hub](https://hub.docker.com/nnzbz/capturer)
-
-### 制作并发布镜像
+运行项目测试：
 
 ```bash
-docker buildx build --platform linux/arm64,linux/amd64 -t nnzbz/capturer:1.0.0 . --push
+cargo test
 ```
 
-## 项目结构
+某些测试可能需要位于 `tests/static/` 目录中的特定测试文件。
 
-```
-capturer/
-├── capturer-svr/           # 主服务实现
-│   ├── src/                # 源代码
-│   │   ├── ctrl/           # API 控制器
-│   │   ├── dto/            # 数据传输对象
-│   │   ├── ffmpeg/         # FFmpeg 集成
-│   │   ├── config/         # 配置处理
-│   │   ├── stream/         # 流媒体功能
-│   │   ├── svc/            # 业务逻辑服务
-│   │   ├── utils/          # 工具函数
-│   │   └── vo/             # 值对象
-│   ├── tests/              # 集成测试
-│   └── capturer-svr.toml   # 默认配置
-└── Dockerfile              # Docker 构建配置
-```
+## 贡献
+
+1. Fork 仓库
+2. 创建功能分支 (`git checkout -b feature/amazing-feature`)
+3. 进行修改
+4. 运行测试 (`cargo test`)
+5. 提交更改 (`git commit -m 'Add amazing feature'`)
+6. 推送到分支 (`git push origin feature/amazing-feature`)
+7. 开启 Pull Request
 
 ## 许可证
 
-该项目采用 MIT 许可证 - 详见 LICENSE 文件了解更多详情。
+本项目采用 MIT 许可证 - 详情请参阅 [LICENSE](LICENSE) 文件。
+
+## 致谢
+
+- 基于 [Actix Web](https://actix.rs/) 构建 - 一款强大、实用且极快的 Rust Web 框架
+- 使用 [FFmpeg](https://ffmpeg.org/) 进行视频处理
+- 文档由 [Utoipa](https://github.com/juhaku/utoipa) 提供支持，用于 OpenAPI 生成

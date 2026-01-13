@@ -1,3 +1,5 @@
+# Capturer - 视频抓拍服务
+# A Rust-based video capturing service that captures images from video streams
 [workspace]
 members = ["capturer-svr"]
 resolver = "3"

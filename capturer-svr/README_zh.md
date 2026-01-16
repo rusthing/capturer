@@ -103,6 +103,18 @@ cargo test
 
 `tests/` 目录中有集成测试，用于验证 FFmpeg 功能。
 
+## Docker 镜像
+
+### 地址
+
+[Docker Hub](https://hub.docker.com/nnzbz/capturer)
+
+### 制作并发布镜像
+
+```bash
+docker buildx build --platform linux/arm64,linux/amd64 -t nnzbz/capturer:1.0.1 . --push
+```
+
 ## 贡献
 
 1. 确保已安装 Rust 和 FFmpeg

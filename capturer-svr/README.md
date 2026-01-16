@@ -103,6 +103,18 @@ cargo test
 
 There are integration tests in the `tests/` directory that verify FFmpeg functionality.
 
+## Docker Image
+
+### address
+
+[Docker Hub](https://hub.docker.com/nnzbz/capturer)
+
+### build and publish image
+
+```bash
+docker buildx build --platform linux/arm64,linux/amd64 -t nnzbz/capturer:1.0.1 . --push
+```
+
 ## Contributing
 
 1. Ensure you have Rust and FFmpeg installed

@@ -9,7 +9,7 @@ pub fn web_service_config(cfg: &mut web::ServiceConfig) {
     cfg.service(capturer_ctrl::capture_to_jpg)
         .service(capturer_ctrl::stream)
         .service(SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
-            Url::new("抓拍器", "/ctrl-docs/capturer-openapi.json"),
+            Url::new("抓拍器", "/web-docs/capturer-openapi.json"),
             CapturerApiDoc::openapi(),
         )]));
 }

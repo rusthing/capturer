@@ -32,7 +32,7 @@ impl CapturerSvc {
         let oss_file_api_ro = oss_file_api_client
             .upload_file_content(
                 dto.bucket.unwrap_or(bucket).as_str(),
-                &format!("{}.jpg", chrono::Utc::now().timestamp_millis()),
+                &format!("{}.jpg", get_current_timestamp()?),
                 jpeg_bytes,
                 dto.current_user_id,
             )

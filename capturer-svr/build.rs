@@ -14,17 +14,26 @@ fn main() {
     // 获取输出目录路径
     let out_dir = std::env::var("OUT_DIR").unwrap();
 
-    // 复制配置文件到输出目录
-    copy_config_file(&out_dir, "toml");
-    copy_config_file(&out_dir, "yml");
-    copy_config_file(&out_dir, "json");
-    copy_config_file(&out_dir, "ini");
-    copy_config_file(&out_dir, "ron");
+    // 复制应用的配置文件到输出目录
+    let config_file_name = env!("CARGO_PKG_NAME");
+    copy_file(&out_dir, config_file_name, "toml");
+    copy_file(&out_dir, config_file_name, "yml");
+    copy_file(&out_dir, config_file_name, "json");
+    copy_file(&out_dir, config_file_name, "ini");
+    copy_file(&out_dir, config_file_name, "ron");
+
+    // 复制日志的配置文件到输出目录
+    let config_file_name = "log";
+    copy_file(&out_dir, config_file_name, "toml");
+    copy_file(&out_dir, config_file_name, "yml");
+    copy_file(&out_dir, config_file_name, "json");
+    copy_file(&out_dir, config_file_name, "ini");
+    copy_file(&out_dir, config_file_name, "ron");
 }
 
 /// 复制指定扩展名的配置文件到输出目录
 ///
-/// 该函数会查找与当前包同名的配置文件（如 `capturer-svr.toml`），
+/// 该函数会查找与当前包同名的配置文件（如 `oss-svr.toml`），
 /// 并将其从项目根目录复制到构建输出目录中。
 ///
 /// # 参数
@@ -44,9 +53,10 @@ fn main() {
 /// - 当无法访问环境变量时
 /// - 当路径操作失败时
 /// - 当文件复制失败时
-fn copy_config_file(out_dir: &str, file_ext: &str) {
+fn copy_file(out_dir: &str, config_file_name: &str, file_ext: &str) {
     // 获取源配置文件路径
-    let config_file_name = format!("{}.{}", env!("CARGO_PKG_NAME"), file_ext);
+    let config_file_name = format!("{config_file_name}.{file_ext}");
+
     let project_root = env!("CARGO_MANIFEST_DIR");
     let config_file_path = Path::new(project_root).join(&config_file_name);
 
@@ -54,7 +64,7 @@ fn copy_config_file(out_dir: &str, file_ext: &str) {
     let dest_path = Path::new(&out_dir)
         .ancestors()
         .nth(3)
-        .unwrap()
+        .expect("Failed to get parent directory")
         .join(&config_file_name);
 
     // 如果源配置文件存在，则执行复制操作
@@ -63,6 +73,10 @@ fn copy_config_file(out_dir: &str, file_ext: &str) {
         //     "cargo:warning=copy {:?} to {:?}",
         //     config_file_path, dest_path
         // );
-        fs::copy(config_file_path, dest_path).expect("Failed to copy config file");
+
+        // 告诉 Cargo 当配置文件变化时重新运行 build.rs
+        println!("cargo:rerun-if-changed={config_file_name}");
+        // 复制文件到目的地
+        fs::copy(config_file_path, dest_path).expect("Failed to copy app file");
     }
 }

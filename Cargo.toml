@@ -29,7 +29,7 @@ async-stream = "0.3.6"
 openssl = { version = "0.10.75" }
 
 wheel-rs = "1.9.1"
-robotech = "1.8.1"
+robotech = "1.9.0"
 oss-api-client = "1.1.7"
 
 

@@ -28,7 +28,7 @@ async-stream = "0.3.6"
 # cross打包时用，需要开启vendored feature
 openssl = { version = "0.10.75" }
 
-wheel-rs = "1.9.3"
+wheel-rs = "1.9.4"
 robotech = "1.10.0"
 oss-api-client = "1.1.7"
 

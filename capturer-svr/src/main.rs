@@ -41,7 +41,7 @@ async fn main() {
     init_env();
 
     info!("初始化日志系统...");
-    init_log().unwrap();
+    let _log_file_watcher = init_log().await?;
 
     info!("解析命令行参数...");
     let args = Args::parse();

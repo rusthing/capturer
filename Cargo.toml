@@ -34,7 +34,7 @@ openssl = { version = "0.10.81" }
 
 wheel-rs = "1.9.4"
 robotech = "1.10.0"
-oss-api-client = "1.1.7"
+oss-api-client = "1.2.0"
 
 
 [patch.crates-io]

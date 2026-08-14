@@ -1,10 +1,10 @@
 use crate::ffmpeg::ffmpeg_eo::{AudioCodecType, FfprobeCmdInfo, StreamMetadata, VideoCodecType};
 use crate::ffmpeg::ffmpeg_error::FfmpegError;
 use bytes::Bytes;
-use log::{debug, info};
 use tokio::process::Child;
 use tokio::sync::broadcast::Sender;
 use tokio::sync::oneshot;
+use tracing::{debug, info};
 use wheel_rs::cmd;
 
 /// ffmpeg命令执行模块
@@ -44,17 +44,17 @@ impl FfmpegCmd {
             ],
         )?;
 
-        let stdout = String::from_utf8(stdout).map_err(|e| FfmpegError::FfprobeParseUtf8Fail(e))?;
+        let stdout = String::from_utf8(stdout).map_err(|e| FfmpegError::FfprobeParseUtf8(e))?;
         debug!("运行ffprobe命令成功: {}", stdout);
         let stdout: FfprobeCmdInfo =
-            serde_json::from_str(&stdout).map_err(|e| FfmpegError::FfprobeParseJsonFail(e))?;
+            serde_json::from_str(&stdout).map_err(|e| FfmpegError::FfprobeParseJson(e))?;
         let streams = stdout.streams;
         let mut stream_metadata = StreamMetadata::default();
         // 遍历所有流，分别处理视频和音频流
         for stream in &streams {
             if stream.codec_type == "video" {
                 let codec_name = stream.codec_name.clone().ok_or_else(|| {
-                    FfmpegError::FfprobeParseFail("缺少codec_name字段".to_string())
+                    FfmpegError::FfprobeParse("缺少codec_name字段".to_string())
                 })?;
                 stream_metadata.video_codec = Some(match codec_name.as_str() {
                     "h264" => VideoCodecType::H264,
@@ -185,7 +185,7 @@ impl FfmpegCmd {
         // 根据编码类型添加特定参数
         match stream_metadata
             .video_codec
-            .ok_or_else(|| FfmpegError::FfprobeParseFail("未发现视频编解码器".to_string()))?
+            .ok_or_else(|| FfmpegError::FfprobeParse("未发现视频编解码器".to_string()))?
         {
             // H.264 直通，不转码（性能最优）
             VideoCodecType::H264 => {

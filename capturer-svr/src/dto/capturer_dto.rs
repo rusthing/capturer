@@ -15,7 +15,7 @@ pub struct CapturerCaptureToJpegDto {
     pub bucket: Option<String>,
     /// 当前用户ID
     #[serde(skip_deserializing)]
-    pub current_user_id: u64,
+    pub _current_user_id: u64,
 }
 
 #[derive(ToSchema, Debug, Deserialize, Validate)]
@@ -29,5 +29,5 @@ pub struct CapturerGetStreamDto {
     pub stream_url: Option<String>,
     /// 当前用户ID
     #[serde(skip_deserializing)]
-    pub current_user_id: u64,
+    pub _current_user_id: u64,
 }

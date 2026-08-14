@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use log::debug;
+use tracing::debug;
 use std::sync::{Arc, OnceLock, RwLock};
 use tokio::sync::broadcast::Sender;
 use wheel_rs::cmd::std::kill_process_by_id;

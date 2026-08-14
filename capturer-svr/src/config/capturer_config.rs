@@ -1,6 +1,40 @@
+use arc_swap::ArcSwap;
+use robotech::cfg::CfgError;
 use serde::{Deserialize, Serialize};
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
+use tracing::info;
 use wheel_rs::serde::duration_option_serde;
+
+static CAPTURER_CONFIG: OnceLock<ArcSwap<CapturerConfig>> = OnceLock::new();
+
+pub fn init_capturer_config(capturer_config: CapturerConfig) -> Result<(), CfgError> {
+    info!("初始化捕capturer的配置");
+    CAPTURER_CONFIG
+        .set(ArcSwap::new(Arc::new(capturer_config)))
+        .map_err(|_| CfgError::Init("Capturer config init failed".to_string()))
+}
+
+pub fn get_capturer_config() -> Result<Arc<CapturerConfig>, CfgError> {
+    Ok(CAPTURER_CONFIG
+        .get()
+        .ok_or(CfgError::NotInit(
+            "Capturer config not initialized".to_string(),
+        ))?
+        .load_full()
+        .clone())
+}
+
+pub fn update_capturer_config(capturer_config: CapturerConfig) -> Result<(), CfgError> {
+    if let Some(swap) = CAPTURER_CONFIG.get() {
+        swap.store(Arc::new(capturer_config));
+        Ok(())
+    } else {
+        Err(CfgError::NotInit(
+            "Capturer config not initialized".to_string(),
+        ))
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]

@@ -1,16 +1,16 @@
 use capturer_svr::config::app_config::AppConfig;
-use capturer_svr::web_service_config::web_service_config;
+use capturer_svr::config::capturer_config::{init_capturer_config, update_capturer_config};
+use capturer_svr::stream::stream_manager::{init_stream_manager, update_stream_manager};
 use clap::Parser;
-use log::info;
 use oss_api_client::api_client::{init_oss_api_client, update_oss_api_client};
 use robotech::app::{wait_app_exit, AppWatcher};
-use robotech::db::init_db_conn;
 use robotech::env::init_env;
 use robotech::log::LogWatcher;
-use robotech::macros::{db_migrate, log_call};
+use robotech::macros::log_call;
 use robotech::signal::SignalManager;
 use robotech::web::{start_web_server, stop_web_service};
 use std::sync::Arc;
+use tracing::info;
 
 /// 视频抓拍工具
 ///
@@ -75,7 +75,14 @@ async fn main() -> anyhow::Result<()> {
         config_file,
         log_watcher.config_changed_tx.clone(),
         move |app_config: Arc<AppConfig>| async move {
+            // 更新capturer的配置
+            update_capturer_config(app_config.capturer.clone())?;
+            // 更新oss的API客户端的配置
             update_oss_api_client(app_config.api_client.clone())?;
+            // 更新流管理器
+            update_stream_manager(app_config.capturer.clone())?;
+
+            // 应用配置
             apply_app_config(app_config, port, None)
                 .await
                 .expect("配置无法应用");
@@ -85,7 +92,12 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?;
 
+    // 初始化capturer的配置
+    init_capturer_config(app_watcher.app_config.capturer.clone())?;
+    // 初始化oss的API客户端的配置
     init_oss_api_client(app_watcher.app_config.api_client.clone())?;
+    // 初始化流管理器
+    init_stream_manager(app_watcher.app_config.capturer.clone())?;
 
     // 应用配置
     apply_app_config(app_watcher.app_config.clone(), port, old_pid).await?;

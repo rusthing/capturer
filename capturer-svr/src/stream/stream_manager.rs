@@ -1,20 +1,51 @@
+use crate::config::capturer_config::{
+    get_capturer_config, CapturerConfig, CmdConfig, SessionConfig,
+};
 use crate::ffmpeg::ffmpeg_cmd::FfmpegCmd;
 use crate::ffmpeg::ffmpeg_error::FfmpegError;
 use crate::ffmpeg::ffmpeg_session::FfmpegSession;
-use crate::config::capturer_config::{CmdConfig, SessionConfig};
-use crate::config::app_config::APP_CONFIG;
+use arc_swap::ArcSwap;
 use bytes::Bytes;
 use chrono::Utc;
-use log::{debug, error, info, trace, warn};
+use robotech::cfg::CfgError;
 use rustc_hash::FxHashMap;
-use std::sync::{Arc, LazyLock, OnceLock, RwLock};
+use std::sync::{Arc, OnceLock, RwLock};
 use std::time::Duration;
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::{broadcast, oneshot};
 use tokio::time::interval;
+use tracing::{debug, error, info, trace, warn};
 
 /// 全局静态的流管理器实例
-pub static STREAM_MANAGER: LazyLock<StreamManager> = LazyLock::new(|| StreamManager::new());
+static STREAM_MANAGER: OnceLock<ArcSwap<StreamManager>> = OnceLock::new();
+
+pub fn init_stream_manager(capturer_config: CapturerConfig) -> Result<(), CfgError> {
+    info!("初始化流管理器");
+    STREAM_MANAGER
+        .set(ArcSwap::new(Arc::new(StreamManager::new(capturer_config)?)))
+        .map_err(|_| CfgError::Init("StreamManager init failed".to_string()))
+}
+
+pub fn get_stream_manager() -> Result<Arc<StreamManager>, CfgError> {
+    Ok(STREAM_MANAGER
+        .get()
+        .ok_or(CfgError::NotInit(
+            "StreamManager not initialized".to_string(),
+        ))?
+        .load_full()
+        .clone())
+}
+
+pub fn update_stream_manager(capturer_config: CapturerConfig) -> Result<(), CfgError> {
+    if let Some(swap) = STREAM_MANAGER.get() {
+        swap.store(Arc::new(StreamManager::new(capturer_config)?));
+        Ok(())
+    } else {
+        Err(CfgError::NotInit(
+            "StreamManager not initialized".to_string(),
+        ))
+    }
+}
 
 /// 流管理器，负责管理ffmpeg流会话
 ///
@@ -33,17 +64,17 @@ impl StreamManager {
     /// 创建一个新的流管理器实例
     ///
     /// 该函数会从配置中读取相关设置，并启动后台任务来定期清理过期会话。
-    pub fn new() -> Self {
+    pub fn new(capturer_config: CapturerConfig) -> Result<Self, CfgError> {
         let CmdConfig {
             read_buffer_size: cmd_read_buffer_size,
             channel_capacity: cmd_channel_capacity,
             ..
-        } = APP_CONFIG.get().expect("无法获取设置").capturer.cmd;
+        } = capturer_config.cmd;
         let SessionConfig {
             timeout_check_interval: Some(session_timeout_check_interval),
             timeout_period: Some(session_timeout_period),
             ..
-        } = APP_CONFIG.get().expect("无法获取设置").capturer.session
+        } = capturer_config.session
         else {
             unreachable!("会话超时检查间隔和超时时间必须配置");
         };
@@ -66,11 +97,11 @@ impl StreamManager {
             }
         });
 
-        Self {
+        Ok(Self {
             cmd_read_buffer_size,
             cmd_channel_capacity,
             sessions,
-        }
+        })
     }
 
     /// 获取指定URL的命令接收者
@@ -104,20 +135,16 @@ impl StreamManager {
         FfmpegError,
     > {
         info!("获取命令接收者: {}", url);
-        let cmd_receiver_count_check_interval = APP_CONFIG
-            .get()
-            .expect("无法获取设置")
-            .capturer
-            .cmd
-            .receiver_count_check_interval
-            .unwrap();
+        let capturer_config = get_capturer_config()?;
+        let cmd_receiver_count_check_interval =
+            capturer_config.cmd.receiver_count_check_interval.unwrap();
 
         let sessions = &self.sessions;
         {
             debug!("获取会话读锁...");
             let sessions_read_lock = sessions.read().map_err(|e| {
                 error!("无法获取会话读锁: {}", e);
-                FfmpegError::FfmpegSessionReadError("无法获取会话读锁".to_string())
+                FfmpegError::FfmpegSessionRead("无法获取会话读锁".to_string())
             })?;
 
             debug!("检查会话是否存在: {}", url);
@@ -127,7 +154,7 @@ impl StreamManager {
                     let mut last_access_datetime_write_lock =
                         session.last_access_datetime.write().map_err(|e| {
                             error!("无法获取 last_access_datetime 写锁: {}", e);
-                            FfmpegError::FfmpegSessionReadError(
+                            FfmpegError::FfmpegSessionRead(
                                 "无法获取 last_access_datetime 写锁".to_string(),
                             )
                         })?;
@@ -163,7 +190,7 @@ impl StreamManager {
 
         let child_id = child
             .id()
-            .ok_or_else(|| FfmpegError::FfmpegSessionReadError("无法获取子进程ID".to_string()))?;
+            .ok_or_else(|| FfmpegError::FfmpegSessionRead("无法获取子进程ID".to_string()))?;
         debug!("ffmpeg child pid: {child_id}");
 
         info!("<子进程{child_id}>会话正在创建....");
@@ -180,7 +207,7 @@ impl StreamManager {
             debug!("获取会话写锁...");
             let mut sessions_write_lock = sessions.write().map_err(|e| {
                 error!("无法获取会话写锁: {}", e);
-                FfmpegError::FfmpegSessionReadError("无法获取会话写锁".to_string())
+                FfmpegError::FfmpegSessionRead("无法获取会话写锁".to_string())
             })?;
             sessions_write_lock.insert(url.to_string(), session.clone());
         }

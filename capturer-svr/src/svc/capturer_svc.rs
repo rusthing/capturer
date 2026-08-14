@@ -1,17 +1,17 @@
-use crate::config::app_config::APP_CONFIG;
-use crate::config::capturer_config::OssConfig;
+use crate::config::capturer_config::{get_capturer_config, OssConfig};
 use crate::dto::capturer_dto::{CapturerCaptureToJpegDto, CapturerGetStreamDto};
 use crate::ffmpeg::ffmpeg_cmd::FfmpegCmd;
 use crate::stream::flv_stream::FlvStream;
-use crate::stream::stream_manager::STREAM_MANAGER;
+use crate::stream::stream_manager::get_stream_manager;
+use anyhow::anyhow;
 use futures::Stream;
-use log::debug;
-use oss_api_client::api_client::OSS_FILE_API_CLIENT;
+use oss_api_client::api_client::get_oss_api_client;
 use robotech::ro::Ro;
 use robotech::ro::RoResult;
-use robotech::svc::svc_error::SvcError;
+use robotech::svc::SvcError;
 use std::sync::Arc;
-use wheel_rs::runtime::Error::RuntimeXError;
+use tracing::debug;
+use wheel_rs::time_utils::now_ts;
 
 pub struct CapturerSvc;
 
@@ -19,22 +19,24 @@ impl CapturerSvc {
     pub async fn capture_to_jpeg(
         dto: CapturerCaptureToJpegDto,
     ) -> Result<Ro<serde_json::Value>, SvcError> {
+        let capturer_config = get_capturer_config()?;
+        let oss_api_client = get_oss_api_client()?;
         let OssConfig {
             jpeg_quality,
             bucket,
-        } = APP_CONFIG.get().unwrap().capturer.oss.clone();
+        } = capturer_config.oss.clone();
         let jpeg_bytes = FfmpegCmd::capture_to_jpeg(dto.stream_url.unwrap().as_str(), jpeg_quality)
             .await
-            .map_err(|e| RuntimeXError("抓拍异常".to_string(), Box::new(e)))?;
+            .map_err(|e| anyhow!("抓拍异常: {:?}", e))?;
 
         debug!("获取oss_file_api实例...");
-        let oss_file_api_client = OSS_FILE_API_CLIENT.get().unwrap();
-        let oss_file_api_ro = oss_file_api_client
+        let oss_file_api_ro = oss_api_client
+            .file_client
             .upload_file_content(
                 dto.bucket.unwrap_or(bucket).as_str(),
                 &format!("{}.jpg", now_ts()?),
                 jpeg_bytes,
-                dto.current_user_id,
+                dto._current_user_id,
             )
             .await?;
 
@@ -50,10 +52,10 @@ impl CapturerSvc {
         dto: CapturerGetStreamDto,
     ) -> Result<impl Stream<Item = Result<bytes::Bytes, SvcError>>, SvcError> {
         debug!("获取stream_manager实例...");
-        let (data_receiver, header, cache_header_sender) = STREAM_MANAGER
+        let (data_receiver, header, cache_header_sender) = get_stream_manager()?
             .get_cmd_receiver(dto.stream_url.unwrap().as_str())
             .await
-            .map_err(|e| RuntimeXError("获取流异常".to_string(), Box::new(e)))?;
+            .map_err(|e| anyhow!("获取流异常: {:?}", e))?;
         debug!("获取flv_stream实例...");
         let flv_stream = FlvStream::new(data_receiver, Arc::clone(&header), cache_header_sender);
         debug!("返回flv_stream...");

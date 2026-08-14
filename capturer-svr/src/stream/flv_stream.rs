@@ -1,8 +1,8 @@
 use async_stream::stream;
 use bytes::Bytes;
 use futures::Stream;
-use log::{debug, warn};
-use robotech::svc::svc_error::SvcError;
+use tracing::{debug, warn};
+use robotech::svc::SvcError;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::{broadcast, oneshot};

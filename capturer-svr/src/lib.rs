@@ -1,9 +1,7 @@
-pub mod api_doc;
-pub mod ctrl;
+pub mod config;
 pub mod dto;
 pub mod ffmpeg;
-pub mod config;
 pub mod stream;
 pub mod svc;
 pub mod vo;
-pub mod web_service_config;
+pub mod web;

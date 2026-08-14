@@ -1,12 +1,16 @@
-use capturer_svr::config::app_config::{init_app_config, APP_CONFIG};
-// use capturer_svr::utils::ffmpeg_utils::init_ffmpeg;
+use capturer_svr::config::app_config::AppConfig;
 use capturer_svr::web_service_config::web_service_config;
 use clap::Parser;
 use log::info;
-use oss_api_client::api_client::init_oss_api_client;
+use oss_api_client::api_client::{init_oss_api_client, update_oss_api_client};
+use robotech::app::{wait_app_exit, AppWatcher};
+use robotech::db::init_db_conn;
 use robotech::env::init_env;
-use robotech::log::init_log;
-use robotech::web::start_web_server;
+use robotech::log::LogWatcher;
+use robotech::macros::{db_migrate, log_call};
+use robotech::signal::SignalManager;
+use robotech::web::{start_web_server, stop_web_service};
+use std::sync::Arc;
 
 /// 视频抓拍工具
 ///
@@ -31,31 +35,111 @@ struct Args {
     /// Web服务器的端口号
     #[arg(short, long)]
     port: Option<u16>,
+
+    /// 监听信号，支持指令如下:
+    /// * `start` - 默认值，先发送`SIGCONT`信号(kill -0)，检查程序是否已运行(如果程序已运行，会报错)，然后启动程序
+    /// * `restart` - 先发送`SIGTERM`信号(kill -15)，如果旧程序已运行，收到信号后会停止运行，然后启动新程序
+    /// * `stop`/`s` - 发送`SIGTERM`信号(kill -15)，用于终止程序，优雅退出
+    /// * `kill`/`k` - 发送`SIGKILL`信号(kill -9)，用于强制终止程序
+    #[arg(
+        short,
+        long,
+        default_value = "start",
+        long_help = r#"监听信号，支持指令如下:
+    start - 默认值，先发送 SIGCONT 信号(kill -0)，检查程序是否已运行(如果程序已运行，会报错)，然后启动程序
+    restart - 先发送 SIGTERM 信号(kill -15)，如果旧程序已运行，收到信号后会停止运行，然后启动新程序
+    stop/s - 发送 SIGTERM 信号(kill -15)，用于终止程序，优雅退出
+    kill/k - 发送 SIGKILL 信号(kill -9)，用于强制终止程序"#
+    )]
+    signal: String,
 }
 
 #[tokio::main]
-async fn main() {
-    info!("程序正在启动……");
+async fn main() -> anyhow::Result<()> {
+    // 解析命令行参数
+    let Args {
+        signal,
+        config_file,
+        port,
+    } = Args::parse();
 
-    info!("初始化环境变量...");
-    init_env();
+    // 初始化环境变量;
+    init_env()?;
+    // 初始化日志系统
+    let log_watcher = LogWatcher::new().await?;
 
-    info!("初始化日志系统...");
-    let _log_file_watcher = init_log().await?;
+    // 初始化信号(_signal_manager变量将在程序优雅退出时释放，释放时删除pid文件)
+    let (mut signal_manager, old_pid) = SignalManager::new(signal)?;
 
-    info!("解析命令行参数...");
-    let args = Args::parse();
+    let app_watcher: AppWatcher<AppConfig> = AppWatcher::new(
+        config_file,
+        log_watcher.config_changed_tx.clone(),
+        move |app_config: Arc<AppConfig>| async move {
+            update_oss_api_client(app_config.api_client.clone())?;
+            apply_app_config(app_config, port, None)
+                .await
+                .expect("配置无法应用");
+            info!("重新加载配置成功");
+            Ok(())
+        },
+    )
+    .await?;
 
-    info!("初始化设置选项...");
-    init_app_config(args.config_file, args.port);
+    init_oss_api_client(app_watcher.app_config.api_client.clone())?;
 
-    info!("初始化API客户端...");
-    let api_client_config = APP_CONFIG.get().unwrap().api_client.clone();
-    init_oss_api_client(api_client_config);
+    // 应用配置
+    apply_app_config(app_watcher.app_config.clone(), port, old_pid).await?;
 
-    // 启动Web服务
-    let web_server_config = APP_CONFIG.get().unwrap().web_server.clone();
-    start_web_server(web_server_config, web_service_config).await;
+    // 监听系统信号与等待退出
+    let signal_receiver = signal_manager.watch_signal()?;
+    Ok(wait_app_exit(signal_receiver, || async move {
+        stop_web_service().await.expect("无法停止旧的Web服务");
+        Ok(())
+    })
+    .await?)
+}
 
-    info!("退出程序");
+///
+/// # 应用配置
+///
+/// ## Arguments
+/// * `port` - 一个可选的u16值，指定Web服务器监听的端口。如果未指定，则使用配置文件中的设置或默认值。
+/// * `old_pid` - 一个可选的i32值，代表旧进程ID，用于在重启时清理资源等操作。
+///
+/// ## Functionality
+/// 1. 加载并构建应用配置信息。
+/// 2. 将配置信息保存到全局上下文中以供其他部分访问。
+/// 3. 根据配置中的数据库设置执行数据库迁移以确保数据库结构是最新的。
+/// 4. 初始化ID生成器，可能用于生成全局唯一ID。
+/// 5. 建立与数据库的连接。
+/// 6. 使用提供的或默认的端口号启动Web服务器，并处理任何给定的旧进程ID。
+///
+/// ## Errors
+/// 如果在升级数据库版本时遇到问题，将打印错误信息并终止程序执行。
+///
+/// ## Examples
+/// ```ignore
+/// // 使用默认配置和端口初始化配置
+/// init_config(None, None, None).await;
+///
+/// // 指定配置文件路径、自定义端口和旧进程ID来初始化配置
+/// init_config(Some(String::from("path/to/app.toml")), Some(8080), Some(1234)).await;
+/// ```
+///
+#[log_call]
+pub async fn apply_app_config(
+    app_config: Arc<AppConfig>,
+    port: Option<u16>,
+    old_pid: Option<u32>,
+) -> anyhow::Result<()> {
+    info!("应用App配置...");
+    let AppConfig {
+        web_server: web_server_config,
+        ..
+    } = AppConfig::clone(&app_config);
+
+    // 启动Web服务器
+    start_web_server(web_server_config, port, old_pid).await?;
+
+    Ok(())
 }

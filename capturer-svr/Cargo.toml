@@ -13,6 +13,7 @@ documentation = "https://github.com/rusthing/capturer/blob/master/README.adoc"
 readme = "README.md"
 
 [dependencies]
+anyhow = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
 chrono = { workspace = true }
@@ -22,15 +23,14 @@ serde_with = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
 rustc-hash = { workspace = true }
-actix-web = { workspace = true }
 validator = { workspace = true, features = ["derive"] }
-utoipa = { workspace = true, features = ["actix_extras"] }
-utoipa-swagger-ui = { workspace = true, features = ["actix-web"] }
+utoipa = { workspace = true, features = ["axum_extras"] }
+utoipa-swagger-ui = { workspace = true, features = ["axum"] }
 bytes = { workspace = true }
 futures = { workspace = true }
 async-stream = { workspace = true }
 wheel-rs = { workspace = true }
-robotech = { workspace = true, features = ["web", "api-client"] }
+robotech = { workspace = true, features = ["web", "api-client", "config-center", "registry-center"] }
 oss-api-client = { workspace = true }
 
 [dev-dependencies]

@@ -306,7 +306,7 @@ checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
 name = "capturer-svr"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -863,7 +863,7 @@ checksum = "6e39034cee21a2f5bbb66ba0e3689819c4bb5d00382a282006e802a7ffa6c41d"
 dependencies = [
  "cfg-if",
  "libc 0.2.189",
- "socket2 0.6.5",
+ "socket2",
  "windows-sys 0.60.2",
 ]
 
@@ -1442,7 +1442,7 @@ dependencies = [
  "libc 0.2.189",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.5.10",
+ "socket2",
  "system-configuration",
  "tokio",
  "tower-service",
@@ -1643,7 +1643,7 @@ version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4d40460c0ce33d6ce4b0630ad68ff63d6661961c48b6dba35e5a4d81cfb48222"
 dependencies = [
- "socket2 0.6.5",
+ "socket2",
  "widestring",
  "windows-registry",
  "windows-result",
@@ -2304,7 +2304,9 @@ dependencies = [
 
 [[package]]
 name = "oss-api-client"
-version = "1.1.7"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d8ff606d614c6dde25b5889c79c52488b956cb95e71fcfda67b928e12e130622"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -2625,7 +2627,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash",
  "rustls",
- "socket2 0.5.10",
+ "socket2",
  "thiserror 2.0.20",
  "tokio",
  "tracing",
@@ -2663,7 +2665,7 @@ dependencies = [
  "cfg_aliases",
  "libc 0.2.189",
  "once_cell",
- "socket2 0.5.10",
+ "socket2",
  "tracing",
  "windows-sys 0.60.2",
 ]
@@ -2902,6 +2904,8 @@ dependencies = [
 [[package]]
 name = "robotech"
 version = "1.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24a03f2de47948292c0a9d8120a95d8904f735ac3672ef7d2d1dc699676cdae1"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -2930,7 +2934,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "socket2 0.6.5",
+ "socket2",
  "thiserror 2.0.20",
  "tokio",
  "tokio-rustls",
@@ -2951,6 +2955,8 @@ dependencies = [
 [[package]]
 name = "robotech-macros"
 version = "1.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "67d4ce6f75c03285dd107ce31c6226b343c0234092ee0b3b370ff21ad9da4e1b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3442,16 +3448,6 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "socket2"
-version = "0.5.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e22376abed350d73dd1cd119b57ffccad95b4e585a7cda43e286245ce23c0678"
-dependencies = [
- "libc 0.2.189",
- "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "socket2"
 version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
@@ -3566,7 +3562,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
@@ -3696,7 +3692,7 @@ dependencies = [
  "mio",
  "pin-project-lite",
  "signal-hook-registry",
- "socket2 0.6.5",
+ "socket2",
  "tokio-macros",
  "windows-sys 0.61.2",
 ]
@@ -3796,7 +3792,7 @@ dependencies = [
  "hyper-util",
  "percent-encoding",
  "pin-project",
- "socket2 0.6.5",
+ "socket2",
  "sync_wrapper",
  "tokio",
  "tokio-stream",
@@ -4342,6 +4338,8 @@ dependencies = [
 [[package]]
 name = "wheel-rs"
 version = "1.9.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b87cb5be91d62de468575baf6b1e495f0c8ffbfde33b6edc34d4718d2f20106"
 dependencies = [
  "anyhow",
  "bytes",

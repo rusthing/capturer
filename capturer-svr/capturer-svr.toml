@@ -1,4 +1,4 @@
-[web-server]
+[web]
 port = 9850
 
 [capturer]

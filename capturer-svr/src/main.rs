@@ -8,7 +8,7 @@ use robotech::env::init_env;
 use robotech::log::LogWatcher;
 use robotech::macros::log_call;
 use robotech::signal::SignalManager;
-use robotech::web::{start_web_server, stop_web_service};
+use robotech::web::{setup_web_server, stop_web_service};
 use std::sync::Arc;
 use tracing::info;
 
@@ -151,7 +151,7 @@ pub async fn apply_app_config(
     } = AppConfig::clone(&app_config);
 
     // 启动Web服务器
-    start_web_server(web_server_config, port, old_pid).await?;
+    setup_web_server(web_server_config, port, old_pid).await?;
 
     Ok(())
 }

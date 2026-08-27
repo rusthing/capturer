@@ -17,6 +17,7 @@ use tokio::sync::broadcast::Receiver;
 use tokio::sync::{broadcast, oneshot};
 use tokio::time::interval;
 use tracing::{debug, error, info, trace, warn};
+use wheel_rs::config_utils::has_config_changed;
 
 const KEY: &str = "capturer";
 /// 全局静态的流管理器实例
@@ -35,7 +36,7 @@ pub fn setup_stream_manager(
     info!("setup stream manager...");
     if changed
         .as_ref()
-        .map(|changed| changed.contains_key(KEY))
+        .map(|changed| has_config_changed(KEY, changed))
         .unwrap_or(true)
     {
         let stream_manager = StreamManager::new(capturer_config)?;

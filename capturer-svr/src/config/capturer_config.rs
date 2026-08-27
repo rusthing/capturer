@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::info;
+use wheel_rs::config_utils::has_config_changed;
 use wheel_rs::serde::duration_option_serde;
 
 const KEY: &str = "capturer";
@@ -24,7 +25,7 @@ pub fn setup_capturer_config(
     info!("setup capturer config...");
     if changed
         .as_ref()
-        .map(|changed| changed.contains_key(KEY))
+        .map(|changed| has_config_changed(KEY, changed))
         .unwrap_or(true)
     {
         CAPTURER_CONFIG.store(Some(Arc::new(capturer_config)));

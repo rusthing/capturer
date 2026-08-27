@@ -34,12 +34,14 @@ linkme = "0.3.37"
 openssl = { version = "0.10.81" }
 
 wheel-rs = "1.9.5"
+idworker = "1.3.0"
 robotech = "1.11.0"
 oss-api-client = "1.2.0"
 
 
 [patch.crates-io]
 wheel-rs = { path = "../wheel-rs" }
+idworker = { path = "../idworker" }
 robotech = { path = "../robotech-rs/robotech" }
 robotech-macros = { path = "../robotech-rs/robotech-macros" }
 oss-api-client = { path = "../oss-rs/oss-api-client" }

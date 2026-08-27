@@ -18,7 +18,7 @@ use tokio::sync::{broadcast, oneshot};
 use tokio::time::interval;
 use tracing::{debug, error, info, trace, warn};
 
-static KEY: &str = "capturer";
+const KEY: &str = "capturer";
 /// 全局静态的流管理器实例
 static STREAM_MANAGER: ArcSwapOption<StreamManager> = ArcSwapOption::const_empty();
 

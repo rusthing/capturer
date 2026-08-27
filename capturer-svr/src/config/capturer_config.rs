@@ -8,7 +8,7 @@ use std::time::Duration;
 use tracing::info;
 use wheel_rs::serde::duration_option_serde;
 
-static KEY: &str = "capturer";
+const KEY: &str = "capturer";
 static CAPTURER_CONFIG: ArcSwapOption<CapturerConfig> = ArcSwapOption::const_empty();
 
 pub fn get_capturer_config() -> Result<Arc<CapturerConfig>, CfgError> {

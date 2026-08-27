@@ -1,5 +1,5 @@
 use crate::config::capturer_config::{
-    get_capturer_config, CapturerConfig, CmdConfig, SessionConfig,
+    get_capturer_config, CapturerConfig, CmdConfig, SessionConfig, CAPTURER_CONFIG_KEY,
 };
 use crate::ffmpeg::ffmpeg_cmd::FfmpegCmd;
 use crate::ffmpeg::ffmpeg_error::FfmpegError;
@@ -19,7 +19,6 @@ use tokio::time::interval;
 use tracing::{debug, error, info, trace, warn};
 use wheel_rs::config_utils::has_config_changed;
 
-const KEY: &str = "capturer";
 /// 全局静态的流管理器实例
 static STREAM_MANAGER: ArcSwapOption<StreamManager> = ArcSwapOption::const_empty();
 
@@ -36,7 +35,7 @@ pub fn setup_stream_manager(
     info!("setup stream manager...");
     if changed
         .as_ref()
-        .map(|changed| has_config_changed(KEY, changed))
+        .map(|changed| has_config_changed(CAPTURER_CONFIG_KEY, changed))
         .unwrap_or(true)
     {
         let stream_manager = StreamManager::new(capturer_config)?;

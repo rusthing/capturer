@@ -9,7 +9,7 @@ use tracing::info;
 use wheel_rs::config_utils::has_config_changed;
 use wheel_rs::serde::duration_option_serde;
 
-const KEY: &str = "capturer";
+pub const CAPTURER_CONFIG_KEY: &str = "capturer";
 static CAPTURER_CONFIG: ArcSwapOption<CapturerConfig> = ArcSwapOption::const_empty();
 
 pub fn get_capturer_config() -> Result<Arc<CapturerConfig>, CfgError> {
@@ -25,7 +25,7 @@ pub fn setup_capturer_config(
     info!("setup capturer config...");
     if changed
         .as_ref()
-        .map(|changed| has_config_changed(KEY, changed))
+        .map(|changed| has_config_changed(CAPTURER_CONFIG_KEY, changed))
         .unwrap_or(true)
     {
         CAPTURER_CONFIG.store(Some(Arc::new(capturer_config)));

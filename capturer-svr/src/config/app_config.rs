@@ -13,7 +13,7 @@ pub struct AppConfig {
     pub capturer: CapturerConfig,
     /// Web服务器设置
     #[serde(default = "WebServerConfig::default")]
-    pub web_server: WebServerConfig,
+    pub web: WebServerConfig,
     /// API客户端设置
     #[serde(default = "HashMap::default")]
     pub api_client: HashMap<String, ApiClientConfig>,
@@ -23,7 +23,7 @@ impl Default for AppConfig {
     fn default() -> AppConfig {
         Self {
             capturer: CapturerConfig::default(),
-            web_server: WebServerConfig::default(),
+            web: WebServerConfig::default(),
             api_client: HashMap::default(),
         }
     }

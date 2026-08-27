@@ -4,11 +4,13 @@ use crate::config::capturer_config::{
 use crate::ffmpeg::ffmpeg_cmd::FfmpegCmd;
 use crate::ffmpeg::ffmpeg_error::FfmpegError;
 use crate::ffmpeg::ffmpeg_session::FfmpegSession;
-use arc_swap::ArcSwap;
+use arc_swap::ArcSwapOption;
 use bytes::Bytes;
 use chrono::Utc;
+use config::Value;
 use robotech::cfg::CfgError;
 use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::Duration;
 use tokio::sync::broadcast::Receiver;
@@ -16,35 +18,30 @@ use tokio::sync::{broadcast, oneshot};
 use tokio::time::interval;
 use tracing::{debug, error, info, trace, warn};
 
+static KEY: &str = "capturer";
 /// 全局静态的流管理器实例
-static STREAM_MANAGER: OnceLock<ArcSwap<StreamManager>> = OnceLock::new();
-
-pub fn init_stream_manager(capturer_config: CapturerConfig) -> Result<(), CfgError> {
-    info!("初始化流管理器");
-    STREAM_MANAGER
-        .set(ArcSwap::new(Arc::new(StreamManager::new(capturer_config)?)))
-        .map_err(|_| CfgError::Init("StreamManager init failed".to_string()))
-}
+static STREAM_MANAGER: ArcSwapOption<StreamManager> = ArcSwapOption::const_empty();
 
 pub fn get_stream_manager() -> Result<Arc<StreamManager>, CfgError> {
-    Ok(STREAM_MANAGER
-        .get()
-        .ok_or(CfgError::NotInit(
-            "StreamManager not initialized".to_string(),
-        ))?
-        .load_full()
-        .clone())
+    STREAM_MANAGER.load_full().ok_or(CfgError::NotInit(
+        "StreamManager not initialized".to_string(),
+    ))
 }
 
-pub fn update_stream_manager(capturer_config: CapturerConfig) -> Result<(), CfgError> {
-    if let Some(swap) = STREAM_MANAGER.get() {
-        swap.store(Arc::new(StreamManager::new(capturer_config)?));
-        Ok(())
-    } else {
-        Err(CfgError::NotInit(
-            "StreamManager not initialized".to_string(),
-        ))
+pub fn setup_stream_manager(
+    capturer_config: CapturerConfig,
+    changed: &Option<HashMap<String, Value>>,
+) -> Result<(), CfgError> {
+    info!("setup stream manager...");
+    if changed
+        .as_ref()
+        .map(|changed| changed.contains_key(KEY))
+        .unwrap_or(true)
+    {
+        let stream_manager = StreamManager::new(capturer_config)?;
+        STREAM_MANAGER.store(Some(Arc::new(stream_manager)));
     }
+    Ok(())
 }
 
 /// 流管理器，负责管理ffmpeg流会话

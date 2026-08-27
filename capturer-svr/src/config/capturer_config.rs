@@ -1,38 +1,33 @@
-use arc_swap::ArcSwap;
+use arc_swap::ArcSwapOption;
+use config::Value;
 use robotech::cfg::CfgError;
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, OnceLock};
+use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 use tracing::info;
 use wheel_rs::serde::duration_option_serde;
 
-static CAPTURER_CONFIG: OnceLock<ArcSwap<CapturerConfig>> = OnceLock::new();
-
-pub fn init_capturer_config(capturer_config: CapturerConfig) -> Result<(), CfgError> {
-    info!("初始化捕capturer的配置");
-    CAPTURER_CONFIG
-        .set(ArcSwap::new(Arc::new(capturer_config)))
-        .map_err(|_| CfgError::Init("Capturer config init failed".to_string()))
-}
+static KEY: &str = "capturer";
+static CAPTURER_CONFIG: ArcSwapOption<CapturerConfig> = ArcSwapOption::const_empty();
 
 pub fn get_capturer_config() -> Result<Arc<CapturerConfig>, CfgError> {
-    Ok(CAPTURER_CONFIG
-        .get()
-        .ok_or(CfgError::NotInit(
-            "Capturer config not initialized".to_string(),
-        ))?
-        .load_full()
-        .clone())
+    CAPTURER_CONFIG.load_full().ok_or(CfgError::NotInit(
+        "Capturer config not initialized".to_string(),
+    ))
 }
 
-pub fn update_capturer_config(capturer_config: CapturerConfig) -> Result<(), CfgError> {
-    if let Some(swap) = CAPTURER_CONFIG.get() {
-        swap.store(Arc::new(capturer_config));
-        Ok(())
-    } else {
-        Err(CfgError::NotInit(
-            "Capturer config not initialized".to_string(),
-        ))
+pub fn setup_capturer_config(
+    capturer_config: CapturerConfig,
+    changed: &Option<HashMap<String, Value>>,
+) {
+    info!("setup capturer config...");
+    if changed
+        .as_ref()
+        .map(|changed| changed.contains_key(KEY))
+        .unwrap_or(true)
+    {
+        CAPTURER_CONFIG.store(Some(Arc::new(capturer_config)));
     }
 }
 

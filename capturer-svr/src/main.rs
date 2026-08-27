@@ -1,14 +1,15 @@
 use capturer_svr::config::app_config::AppConfig;
-use capturer_svr::config::capturer_config::{init_capturer_config, update_capturer_config};
-use capturer_svr::stream::stream_manager::{init_stream_manager, update_stream_manager};
+use capturer_svr::config::capturer_config::setup_capturer_config;
+use capturer_svr::stream::stream_manager::setup_stream_manager;
 use clap::Parser;
-use oss_api_client::api_client::{init_oss_api_client, update_oss_api_client};
+use config::Value;
+use oss_api_client::api_client::setup_oss_api_client;
 use robotech::app::{wait_app_exit, AppWatcher};
 use robotech::env::init_env;
 use robotech::log::LogWatcher;
-use robotech::macros::log_call;
 use robotech::signal::SignalManager;
 use robotech::web::{setup_web_server, stop_web_service};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::info;
 
@@ -74,33 +75,18 @@ async fn main() -> anyhow::Result<()> {
     let app_watcher: AppWatcher<AppConfig> = AppWatcher::new(
         config_file_path,
         log_watcher.config_changed_tx.clone(),
-        move |app_config: Arc<AppConfig>| async move {
-            // 更新capturer的配置
-            update_capturer_config(app_config.capturer.clone())?;
-            // 更新oss的API客户端的配置
-            update_oss_api_client(app_config.api_client.clone())?;
-            // 更新流管理器
-            update_stream_manager(app_config.capturer.clone())?;
+        move |app_config: Arc<AppConfig>, changed| async move {
+            let changed = Some(changed);
+            setup(&app_config, &changed, port, old_pid).await?;
 
-            // 应用配置
-            apply_app_config(app_config, port, None)
-                .await
-                .expect("配置无法应用");
             info!("重新加载配置成功");
             Ok(())
         },
     )
     .await?;
 
-    // 初始化capturer的配置
-    init_capturer_config(app_watcher.app_config.capturer.clone())?;
-    // 初始化oss的API客户端的配置
-    init_oss_api_client(app_watcher.app_config.api_client.clone())?;
-    // 初始化流管理器
-    init_stream_manager(app_watcher.app_config.capturer.clone())?;
-
-    // 应用配置
-    apply_app_config(app_watcher.app_config.clone(), port, old_pid).await?;
+    let changed = None;
+    setup(&app_watcher.app_config, &changed, port, old_pid).await?;
 
     // 监听系统信号与等待退出
     let signal_receiver = signal_manager.watch_signal()?;
@@ -111,47 +97,28 @@ async fn main() -> anyhow::Result<()> {
     .await?)
 }
 
-///
-/// # 应用配置
-///
-/// ## Arguments
+/// # 初始化或更新应用配置
+/// ## 参数
+/// * `app_config` - 应用配置的Arc智能指针，用于访问和修改配置
+/// * `changed` - 一个可选的HashMap，用于存储配置中发生改变的键值对
 /// * `port` - 一个可选的u16值，指定Web服务器监听的端口。如果未指定，则使用配置文件中的设置或默认值。
 /// * `old_pid` - 一个可选的i32值，代表旧进程ID，用于在重启时清理资源等操作。
-///
-/// ## Functionality
-/// 1. 加载并构建应用配置信息。
-/// 2. 将配置信息保存到全局上下文中以供其他部分访问。
-/// 3. 根据配置中的数据库设置执行数据库迁移以确保数据库结构是最新的。
-/// 4. 初始化ID生成器，可能用于生成全局唯一ID。
-/// 5. 建立与数据库的连接。
-/// 6. 使用提供的或默认的端口号启动Web服务器，并处理任何给定的旧进程ID。
-///
-/// ## Errors
-/// 如果在升级数据库版本时遇到问题，将打印错误信息并终止程序执行。
-///
-/// ## Examples
-/// ```ignore
-/// // 使用默认配置和端口初始化配置
-/// init_config(None, None, None).await;
-///
-/// // 指定配置文件路径、自定义端口和旧进程ID来初始化配置
-/// init_config(Some(String::from("path/to/app.toml")), Some(8080), Some(1234)).await;
-/// ```
-///
-#[log_call]
-pub async fn apply_app_config(
-    app_config: Arc<AppConfig>,
+async fn setup(
+    app_config: &Arc<AppConfig>,
+    changed: &Option<HashMap<String, Value>>,
     port: Option<u16>,
     old_pid: Option<u32>,
-) -> anyhow::Result<()> {
-    info!("应用App配置...");
-    let AppConfig {
-        web_server: web_server_config,
-        ..
-    } = AppConfig::clone(&app_config);
+) -> Result<(), anyhow::Error> {
+    // 初始化或更新oss的API客户端的配置
+    setup_oss_api_client(app_config.api_client.clone(), &changed);
+    // 初始化或更新capturer的配置...
+    setup_capturer_config(app_config.capturer.clone(), &changed);
 
-    // 启动Web服务器
-    setup_web_server(web_server_config, port, old_pid).await?;
+    // 更新流管理器
+    setup_stream_manager(app_config.capturer.clone(), &changed)?;
+
+    // 初始化或更新Web服务器...
+    setup_web_server(app_config.web.clone(), port, old_pid, &changed).await?;
 
     Ok(())
 }

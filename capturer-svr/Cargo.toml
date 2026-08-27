@@ -17,6 +17,7 @@ anyhow = { workspace = true }
 tracing = { workspace = true }
 arc-swap = { workspace = true }
 thiserror = { workspace = true }
+config = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 serde = { workspace = true, features = ["derive"] }

@@ -22,7 +22,7 @@ pub fn setup_capturer_config(
     capturer_config: CapturerConfig,
     changed: &Option<HashMap<String, Value>>,
 ) {
-    info!("setup capturer config...");
+    info!("setup capturer config...: {capturer_config:?}");
     if changed
         .as_ref()
         .map(|changed| has_config_changed(CAPTURER_CONFIG_KEY, changed))

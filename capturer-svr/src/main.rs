@@ -7,6 +7,8 @@ use oss_api_client::api_client::setup_oss_api_client;
 use robotech::app::{wait_app_exit, AppWatcher};
 use robotech::env::init_env;
 use robotech::log::LogWatcher;
+use robotech::macros::log_call;
+use robotech::micro_svc::{drop_hub_client, register_micro_svc};
 use robotech::signal::SignalManager;
 use robotech::web::{setup_web_server, stop_web_service};
 use std::collections::HashMap;
@@ -78,7 +80,6 @@ async fn main() -> anyhow::Result<()> {
         move |app_config: Arc<AppConfig>, changed| async move {
             let changed = Some(changed);
             setup(&app_config, &changed, port, old_pid).await?;
-
             info!("重新加载配置成功");
             Ok(())
         },
@@ -88,9 +89,14 @@ async fn main() -> anyhow::Result<()> {
     let changed = None;
     setup(&app_watcher.app_config, &changed, port, old_pid).await?;
 
+    // 注册服务到注册中心
+    register_micro_svc().await;
+
     // 监听系统信号与等待退出
     let signal_receiver = signal_manager.watch_signal()?;
     Ok(wait_app_exit(signal_receiver, || async move {
+        // 从注册中心注销服务
+        drop_hub_client().await;
         stop_web_service().await.expect("无法停止旧的Web服务");
         Ok(())
     })
@@ -103,6 +109,7 @@ async fn main() -> anyhow::Result<()> {
 /// * `changed` - 一个可选的HashMap，用于存储配置中发生改变的键值对
 /// * `port` - 一个可选的u16值，指定Web服务器监听的端口。如果未指定，则使用配置文件中的设置或默认值。
 /// * `old_pid` - 一个可选的i32值，代表旧进程ID，用于在重启时清理资源等操作。
+#[log_call]
 async fn setup(
     app_config: &Arc<AppConfig>,
     changed: &Option<HashMap<String, Value>>,

@@ -16,7 +16,7 @@ pub struct AppConfig {
     pub web: WebServerConfig,
     /// API客户端设置
     #[serde(default = "HashMap::default")]
-    pub api_client: HashMap<String, ApiClientConfig>,
+    pub api: HashMap<String, ApiClientConfig>,
 }
 
 impl Default for AppConfig {
@@ -24,7 +24,7 @@ impl Default for AppConfig {
         Self {
             capturer: CapturerConfig::default(),
             web: WebServerConfig::default(),
-            api_client: HashMap::default(),
+            api: HashMap::default(),
         }
     }
 }

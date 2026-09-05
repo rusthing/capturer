@@ -117,7 +117,7 @@ async fn setup(
     old_pid: Option<u32>,
 ) -> Result<(), anyhow::Error> {
     // 初始化或更新oss的API客户端的配置
-    setup_oss_api_client(app_config.api.clone(), &changed).await;
+    setup_oss_api_client(app_config.api.clone(), &changed).await?;
     // 初始化或更新capturer的配置...
     setup_capturer_config(app_config.capturer.clone(), &changed);
 

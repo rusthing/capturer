@@ -6,5 +6,12 @@ session.timeout-check-interval = "5s"
 session.timeout-period = "5s"
 cmd.channel_capacity = 5
 
+[micro-svc.consul]
+base-url = "http://consul:8500"
+#config.file-format = "toml"
+#config.common-configs = "log.toml"
+[micro-svc.consul.registry]
+
 [api]
-oss.base-url = "http://ossrs:9840"
+#oss.base-url = "http://ossrs:9840"
+oss.svc-name = "oss-svr"

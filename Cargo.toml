@@ -39,9 +39,9 @@ robotech = "1.14.0"
 oss-api-client = "1.5.0"
 
 
-#[patch.crates-io]
+[patch.crates-io]
 #wheel-rs = { path = "../wheel-rs" }
 #idworker = { path = "../idworker" }
-#robotech = { path = "../robotech-rs/robotech" }
-#robotech-macros = { path = "../robotech-rs/robotech-macros" }
-#oss-api-client = { path = "../oss-rs/oss-api-client" }
+robotech = { path = "../robotech-rs/robotech" }
+robotech-macros = { path = "../robotech-rs/robotech-macros" }
+oss-api-client = { path = "../oss-rs/oss-api-client" }

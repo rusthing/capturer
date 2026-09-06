@@ -12,6 +12,7 @@ base-url = "http://consul:8500"
 #config.common-configs = "log.toml"
 [micro-svc.consul.registry]
 
-[api]
-#oss.base-url = "http://ossrs:9840"
-oss.svc-name = "oss-svr"
+[api.oss]
+#base-url = "http://ossrs:9840"
+type = "MicroSvc"
+svc-name = "oss-svr"

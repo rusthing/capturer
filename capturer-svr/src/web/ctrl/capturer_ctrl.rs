@@ -5,7 +5,7 @@ use axum::extract::Query;
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{debug_handler, Json};
-use oss_api_client::vo::oss_obj_ref::OssObjRefVo;
+use oss_api_client::vo::OssObjRefVo;
 use robotech::macros::log_call;
 use robotech::ro::Ro;
 use robotech::web::ctrl_utils::get_current_user_id;

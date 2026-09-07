@@ -33,10 +33,10 @@ linkme = "0.3.37"
 # cross打包时用，需要开启vendored feature
 openssl = { version = "0.10.81" }
 
-wheel-rs = "1.10.0"
+wheel-rs = "1.11.1"
 idworker = "1.3.0"
-robotech = "1.15.1"
-oss-api-client = "1.6.0"
+robotech = "1.15.2"
+oss-api-client = "1.7.0"
 
 
 #[patch.crates-io]

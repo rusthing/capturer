@@ -35,7 +35,7 @@ async-stream = { workspace = true }
 linkme = { workspace = true }
 
 wheel-rs = { workspace = true }
-robotech = { workspace = true, features = ["web", "api-client", "config-center", "registry-center"] }
+robotech = { workspace = true, features = ["feign", "config-center"] }
 oss-api-client = { workspace = true }
 
 [dev-dependencies]

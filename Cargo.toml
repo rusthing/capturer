@@ -40,7 +40,7 @@ oss-api-client = "1.7.1"
 
 
 [patch.crates-io]
-#wheel-rs = { path = "../wheel-rs" }
+wheel-rs = { path = "../wheel-rs" }
 #idworker = { path = "../idworker" }
 robotech = { path = "../robotech-rs/robotech" }
 robotech-macros = { path = "../robotech-rs/robotech-macros" }

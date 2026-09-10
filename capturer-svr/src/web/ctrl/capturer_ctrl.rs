@@ -6,8 +6,8 @@ use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{debug_handler, Json};
 use oss_api_client::vo::OssObjRefVo;
-use robotech::macros::log_call;
 use robotech::api::Ro;
+use robotech::macros::log_call;
 use robotech::web::ctrl_utils::get_current_user_id;
 use robotech::web::CtrlError;
 use validator::Validate;
@@ -24,7 +24,7 @@ pub async fn capture_to_jpeg(
     Json(mut dto): Json<CapturerCaptureToJpegDto>,
 ) -> Result<Json<Ro<serde_json::Value>>, CtrlError> {
     // 从header中解析当前用户ID，如果没有或解析失败则抛出ApiError
-    dto._current_user_id = get_current_user_id(&headers)?;
+    dto._current_user_id = get_current_user_id(&headers)?.value();
 
     let result = CapturerSvc::capture_to_jpeg(dto).await?;
     Ok(Json(result))

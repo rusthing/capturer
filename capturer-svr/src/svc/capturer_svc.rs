@@ -11,7 +11,7 @@ use robotech::api::RoResult;
 use robotech::svc::SvcError;
 use std::sync::Arc;
 use tracing::debug;
-use wheel_rs::time_utils::now_ts;
+use wheel_rs::time_utils::now_ms;
 
 pub struct CapturerSvc;
 
@@ -34,7 +34,7 @@ impl CapturerSvc {
             .file_client
             .upload_file_content(
                 dto.bucket.unwrap_or(bucket).as_str(),
-                &format!("{}.jpg", now_ts()?),
+                &format!("{}.jpg", now_ms()),
                 jpeg_bytes,
                 dto._current_user_id,
             )

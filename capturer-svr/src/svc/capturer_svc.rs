@@ -31,7 +31,7 @@ impl CapturerSvc {
 
         debug!("获取oss_file_api实例...");
         let oss_file_api_ro = oss_api_client
-            .file_client
+            .file
             .upload_file_content(
                 dto.bucket.unwrap_or(bucket).as_str(),
                 &format!("{}.jpg", now_ms()),
